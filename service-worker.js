@@ -60,11 +60,12 @@ self.addEventListener('fetch', event => {
 /* ── Cache-first strategy ── */
 async function cacheFirst(request) {
   const cached = await caches.match(request);
-  if (cached) return cached;
+  if (cached) return cleanResponse(cached);
 
   try {
-    const response = await fetch(request);
+    let response = await fetch(request);
     if (response.ok) {
+      response = cleanResponse(response);
       const cache = await caches.open(CACHE_NAME);
       cache.put(request, response.clone());
     }
@@ -73,7 +74,7 @@ async function cacheFirst(request) {
     // Offline fallback for navigation requests
     if (request.mode === 'navigate') {
       const cached = await caches.match('./index.html');
-      if (cached) return cached;
+      if (cached) return cleanResponse(cached);
     }
     return new Response('Offline — check your connection.', {
       status: 503,
@@ -85,15 +86,32 @@ async function cacheFirst(request) {
 /* ── Network-first strategy ── */
 async function networkFirst(request) {
   try {
-    const response = await fetch(request);
-    return response;
+    let response = await fetch(request);
+    return cleanResponse(response);
   } catch {
     // Return cached response if available
     const cached = await caches.match(request);
-    if (cached) return cached;
+    if (cached) return cleanResponse(cached);
     return new Response(JSON.stringify({ status: 'error', message: 'You appear to be offline.' }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' }
     });
   }
+}
+
+/**
+ * Safari Workaround: Rebuild redirected responses to strip the internal redirected flag.
+ * Safari throws a "Response served by service worker has redirections" error if a response
+ * was redirected during network load and served from the service worker.
+ */
+function cleanResponse(response) {
+  if (!response) return response;
+  if (response.redirected) {
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    });
+  }
+  return response;
 }
