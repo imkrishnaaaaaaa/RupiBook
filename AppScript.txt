@@ -70,51 +70,82 @@ function doGet(e) {
 
 /*** ───────── BUDGET CHECK ───────── ***/
 function checkBudgets(ss, month, category) {
-  var settings   = ss.getSheetByName("Settings");
-  var threshold  = 0.8;
-  var totalLimit = 0;
-  if (settings) {
-    totalLimit = Number(settings.getRange("B1").getValue()) || 0;
-    var t = Number(settings.getRange("B2").getValue());
-    if (t > 0) threshold = t / 100;
+	var settings = ss.getSheetByName("Settings");
+
+	var threshold = 0.8;
+	var totalLimit = 0;
+
+	if (settings) {
+		totalLimit = Number(settings.getRange("B1").getValue()) || 0;
+
+		var t = Number(settings.getRange("B2").getValue());
+
+		if (t > 0) {
+			threshold = t / 100;
+		}
+	}
+
+	var data = ss.getSheetByName("Expenses").getDataRange().getValues();
+
+	var totalSpent = 0;
+	var catSpent = 0;
+
+	for (var i = 1; i < data.length; i++) {
+		if (!data[i][0] || data[i][1] === "") {
+			continue;
+		}
+
+		var rowMonth = data[i][7];
+
+		if (rowMonth instanceof Date) {
+			rowMonth = Utilities.formatDate(rowMonth, TIMEZONE, "yyyy-MM");
+		}
+
+		rowMonth = String(rowMonth || "").trim();
+
+		if (rowMonth !== month) {
+			continue;
+		}
+
+		var amt = Number(data[i][1]) || 0;
+
+		totalSpent += amt;
+
+		if (String(data[i][2] || "").trim() === category) {
+			catSpent += amt;
+		}
+	}
+
+	var catLimit = 0;
+
+	var budgets = ss.getSheetByName("Budgets");
+
+	if (budgets) {
+		var b = budgets.getDataRange().getValues();
+
+		for (var j = 1; j < b.length; j++) {
+			if (String(b[j][0] || "").trim() === String(category || "").trim()) {
+				catLimit = Number(b[j][1]) || 0;
+				break;
+			}
+		}
+	}
+
+	var alerts = [];
+
+	if (catLimit > 0 && catSpent >= threshold * catLimit) {
+    alerts.push(`⚠️ ${category}: ${CURRENCY}${fmt(catSpent)} of ${CURRENCY}${fmt(catLimit)} (${Math.round((catSpent / catLimit) * 100)}%). ${CURRENCY}${fmt(catLimit - catSpent)} left.`);
   }
 
-  // Sum this month's spending (total + this category)
-  var data = ss.getSheetByName("Expenses").getDataRange().getValues();
-  var totalSpent = 0, catSpent = 0;
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][7] === month) {                 // col H = Month
-      var amt = Number(data[i][1]) || 0;        // col B = Amount
-      totalSpent += amt;
-      if (data[i][2] === category) catSpent += amt; // col C = Category
-    }
-  }
-
-  // This category's limit from the Budgets sheet
-  var catLimit = 0;
-  var budgets = ss.getSheetByName("Budgets");
-  if (budgets) {
-    var b = budgets.getDataRange().getValues();
-    for (var j = 1; j < b.length; j++) {
-      if (b[j][0] === category) { catLimit = Number(b[j][1]) || 0; break; }
-    }
-  }
-
-  var alerts = [];
-  if (catLimit > 0 && catSpent >= threshold * catLimit) {
-    alerts.push("⚠️ " + category + ": " + CURRENCY + fmt(catSpent) + " of " + CURRENCY + fmt(catLimit) +
-      " (" + Math.round(catSpent / catLimit * 100) + "%). " + CURRENCY + fmt(catLimit - catSpent) + " left.");
-  }
   if (totalLimit > 0 && totalSpent >= threshold * totalLimit) {
-    alerts.push("🚨 Overall: " + CURRENCY + fmt(totalSpent) + " of " + CURRENCY + fmt(totalLimit) +
-      " (" + Math.round(totalSpent / totalLimit * 100) + "%). " + CURRENCY + fmt(totalLimit - totalSpent) + " left.");
+    alerts.push(`🚨 Overall: ${CURRENCY}${fmt(totalSpent)} of ${CURRENCY}${fmt(totalLimit)} (${Math.round((totalSpent / totalLimit) * 100)}%). ${CURRENCY}${fmt(totalLimit - totalSpent)} left.`);
   }
 
   if (alerts.length === 0) {
-    return "✅ Logged · " + category + ". Month so far: " + CURRENCY + fmt(totalSpent) +
-      (totalLimit > 0 ? " / " + CURRENCY + fmt(totalLimit) : "") + ".";
-  }
-  return alerts.join("\n");
+    return `✅ Logged · ${category}. Month so far: ${CURRENCY}${fmt(totalSpent)}${totalLimit > 0 ? ` / ${CURRENCY}${fmt(totalLimit)}` : ""}.`;
+}
+
+	return alerts.join("\n");
 }
 
 /*** ───────── UNDO LAST ENTRY ───────── ***/
