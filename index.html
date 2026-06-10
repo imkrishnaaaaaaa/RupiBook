@@ -276,12 +276,11 @@
 
     <!-- Payment Modes -->
     <div class="settings-section">
-      <div class="settings-section-title">Payment Modes <span style="font-weight:400;color:var(--text-3);font-size:11px">— edit here</span></div>
+      <div class="settings-section-title">Payment Modes <span style="font-weight:400;color:var(--text-3);font-size:11px">— synced from Google Sheets</span></div>
       <div class="card" style="padding:14px">
         <div id="paymentModeList" class="payment-modes-list"></div>
         <div style="display:flex;gap:8px;margin-top:10px">
-          <input id="newPaymentMode" type="text" placeholder="Add new payment mode…" style="flex:1" autocomplete="off">
-          <button class="btn btn-primary btn-sm" id="addPaymentModeBtn">Add</button>
+          <button class="btn btn-secondary btn-sm" id="refreshPaymentModesBtn">↻ Refresh from Sheets</button>
         </div>
       </div>
     </div>
@@ -434,6 +433,7 @@
 
   <!-- Scripts (order matters) -->
   <script src="js/config.js"></script>
+  <script src="js/static-data.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/api.js"></script>
   <script src="js/dashboard.js"></script>

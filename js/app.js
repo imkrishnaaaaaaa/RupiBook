@@ -281,6 +281,13 @@ const Home = {
       const cfg   = await API.fetchConfig();
       App.configData = cfg;
       this.populateCategories(cfg.categories);
+      
+      if (cfg.paymentModes && cfg.paymentModes.length > 0) {
+        profile.paymentModes = cfg.paymentModes;
+        saveActiveProfile(profile);
+        this.populatePaymentModes();
+        Settings.renderPaymentModes();
+      }
     } catch (e) {
       catSel.innerHTML = '<option value="">Failed to load categories</option>';
       showToast({ icon: '⚠️', title: 'Config Error', message: e.message });
@@ -574,7 +581,6 @@ const Settings = {
     container.innerHTML = modes.map((m, i) => `
       <span class="pm-tag">
         ${escapeHtml(m)}
-        <button onclick="Settings.removePaymentMode(${i})" aria-label="Remove ${escapeHtml(m)}">×</button>
       </span>`).join('');
   },
 
@@ -660,37 +666,31 @@ const Settings = {
       if (profile) { profile.autoHideToast = e.target.checked; saveActiveProfile(profile); }
     });
 
-    // Add payment mode
-    document.getElementById('addPaymentModeBtn')?.addEventListener('click', () => {
-      const input = document.getElementById('newPaymentMode');
-      const val   = input?.value.trim();
-      if (!val) return;
-      const profile = getActiveProfile();
-      if (profile) {
-        if (!profile.paymentModes) profile.paymentModes = [...APP_CONFIG.DEFAULT_PAYMENT_MODES];
-        if (!profile.paymentModes.includes(val)) {
-          profile.paymentModes.push(val);
+    // Refresh payment modes
+    document.getElementById('refreshPaymentModesBtn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('refreshPaymentModesBtn');
+      const origText = btn.textContent;
+      btn.textContent = 'Refreshing…';
+      btn.disabled = true;
+      try {
+        const cfg = await API.fetchConfig();
+        const profile = getActiveProfile();
+        if (profile && cfg.paymentModes && cfg.paymentModes.length > 0) {
+          profile.paymentModes = cfg.paymentModes;
           saveActiveProfile(profile);
           Home.populatePaymentModes();
-          this.renderPaymentModes();
+          Settings.renderPaymentModes();
+          showToast({ icon: '✅', title: 'Refreshed', message: 'Payment modes synced from Sheets.' });
+        } else {
+          showToast({ icon: 'ℹ️', title: 'No update', message: 'No payment modes found in Sheets.' });
         }
-        input.value = '';
+      } catch (e) {
+        showToast({ icon: '❌', title: 'Error', message: 'Failed to refresh: ' + e.message });
+      } finally {
+        btn.textContent = origText;
+        btn.disabled = false;
       }
     });
-
-    document.getElementById('newPaymentMode')?.addEventListener('keypress', e => {
-      if (e.key === 'Enter') document.getElementById('addPaymentModeBtn')?.click();
-    });
-  },
-
-  removePaymentMode(index) {
-    const profile = getActiveProfile();
-    if (profile?.paymentModes) {
-      profile.paymentModes.splice(index, 1);
-      saveActiveProfile(profile);
-      Home.populatePaymentModes();
-      this.renderPaymentModes();
-    }
   },
 
   updateProfileBadge() {

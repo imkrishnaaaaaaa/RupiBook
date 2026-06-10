@@ -242,7 +242,7 @@ function setupSheets() {
     var set = ss.getSheetByName("Settings") || ss.insertSheet("Settings");
     if (set.getLastRow() === 0) {
         set.getRange("A1").setValue("Monthly Total Limit"); set.getRange("B1").setValue(25000);
-        set.getRange("A2").setValue("Alert Threshold %"); set.getRange("B2").setValue(80);
+        set.getRange("A2").setValue("Alert Threshold %"); set.getRange("B2").setValue(75);
         set.getRange("A1:A2").setFontWeight("bold");
     }
 
@@ -250,12 +250,38 @@ function setupSheets() {
     if (ap.getLastRow() === 0) {
         ap.appendRow(["Name", "Amount", "Category", "Day of Month", "Active"]);
         ap.getRange(2, 1, 3, 5).setValues([
-            ["Netflix", 199, "Entertainment", 1, true],
-            ["Rent", 12000, "Bills", 1, true],
-            ["Gym", 1000, "Health", 5, true]
+            ["Netflix", 0, "Entertainment", 1, true],
+            ["Investment", 0, "Bills", 1, true],
+            ["Claude", 0, "Education", 5, true]
         ]);
         ap.getRange(2, 5, 3, 1).insertCheckboxes();
         ap.getRange("1:1").setFontWeight("bold").setBackground("#FBBC04");
+    }
+
+    var config = ss.getSheetByName("Config") || ss.insertSheet("Config");
+    if (config.getLastRow() === 0) {
+        config.appendRow(["Category", "Source"]);
+        config.getRange(2, 1, 25, 2).setValues([
+            ["Transport", "Rapido/Uber"], ["Transport", "Petrol"], ["Transport", "CityTravel"], ["Transport", "LongTravel"], ["Transport", "Others"],
+            ["Food", "Zomato/Swiggy"], ["Food", "FastFood"], ["Food", "EatOutside"],
+            ["Groceries", "QuickDelivery"], ["Groceries", "Outside"],
+            ["Entertainment", "Movies"], ["Entertainment", "Subscriptions"], ["Entertainment", "Offline"],
+            ["Shopping", "E-Commerce"], ["Shopping", "Offline"], ["Shopping", "Others"],
+            ["Bills", "MobileRecharge"], ["Bills", "Electricity"], ["Bills", "Rent"], ["Bills", "Others"],
+            ["Health", "Consultation"], ["Health", "Medicine"],
+            ["Donate", "Online"], ["Donate", "Offline"],
+            ["Others", "Others"]
+        ]);
+        config.getRange("1:1").setFontWeight("bold").setBackground("#EA4335").setFontColor("#ffffff");
+    }
+
+    var pm = ss.getSheetByName("PaymentModes") || ss.insertSheet("PaymentModes");
+    if (pm.getLastRow() === 0) {
+        pm.appendRow(["Payment Mode"]);
+        pm.getRange(2, 1, 9, 1).setValues([
+            ["Cash"], ["UPI"], ["PhonePe"], ["GPay"], ["Paytm"], ["Amazon Wallet"], ["CreditCard"], ["DebitCard"], ["NetBanking"]
+        ]);
+        pm.getRange("1:1").setFontWeight("bold").setBackground("#9C27B0").setFontColor("#ffffff");
     }
 
     try { SpreadsheetApp.getUi().alert("✅ All sheets are ready!"); } catch (e) { }
@@ -290,36 +316,44 @@ function fmt(n) {
 
 //Additional Methods
 function getConfigData() {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Config");
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Config");
 
-    if (!sheet) {
-        return {
-            categories: [],
-            mapping: {}
-        };
-    }
-
-    var data = sheet.getDataRange().getValues();
     var mapping = {};
     var categories = [];
 
-    for (var i = 1; i < data.length; i++) {
-        var category = String(data[i][0] || "").trim();
-        var source = String(data[i][1] || "").trim();
+    if (sheet) {
+        var data = sheet.getDataRange().getValues();
+        for (var i = 1; i < data.length; i++) {
+            var category = String(data[i][0] || "").trim();
+            var source = String(data[i][1] || "").trim();
 
-        if (!category || !source) continue;
+            if (!category || !source) continue;
 
-        if (!mapping[category]) {
-            mapping[category] = [];
-            categories.push(category);
+            if (!mapping[category]) {
+                mapping[category] = [];
+                categories.push(category);
+            }
+
+            mapping[category].push(source);
         }
+    }
 
-        mapping[category].push(source);
+    var pmSheet = ss.getSheetByName("PaymentModes");
+    var paymentModes = [];
+
+    if (pmSheet) {
+        var pmData = pmSheet.getDataRange().getValues();
+        for (var j = 1; j < pmData.length; j++) {
+            var mode = String(pmData[j][0] || "").trim();
+            if (mode) paymentModes.push(mode);
+        }
     }
 
     return {
         categories: categories,
-        mapping: mapping
+        mapping: mapping,
+        paymentModes: paymentModes
     };
 }
 

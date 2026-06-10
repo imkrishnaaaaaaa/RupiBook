@@ -6,19 +6,7 @@ const APP_CONFIG = {
 
     DEFAULT_PROFILE: "Personal",
 
-    DEFAULT_PAYMENT_MODES: [
-        "Cash",
-        "SuperMoney",
-        "UPI",
-        "Bhim",
-        "PhonePe",
-        "GPay",
-        "Paytm",
-        "Cred",
-        "CreditCard",
-        "DebitCard",
-        "NetBanking"
-    ],
+    DEFAULT_PAYMENT_MODES: [],
 
     TOAST_DURATION: 5000,
 
