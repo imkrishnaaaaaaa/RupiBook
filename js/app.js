@@ -173,7 +173,16 @@ function navigateTo(page) {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.page === page);
   });
-  document.querySelector('.action-bar')?.classList.toggle('hidden', page !== 'home');
+
+  const isHome = page === 'home';
+  const actionBar = document.querySelector('.action-bar');
+  const bottomNav = document.querySelector('.bottom-nav');
+
+  actionBar?.classList.toggle('hidden', !isHome);
+  // Nav floats above the action-bar only on home; elsewhere it rests at screen bottom
+  bottomNav?.classList.toggle('nav-above-bar', isHome);
+  // Body bottom padding: extra space for action-bar only on home
+  document.body.classList.toggle('no-action-bar', !isHome);
 
   if (page === 'dashboard')  Dashboard.load();
   if (page === 'analytics')  Analytics.load();

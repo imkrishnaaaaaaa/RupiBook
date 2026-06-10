@@ -14,6 +14,18 @@ const Analytics = (() => {
     tagSearch: ''
   };
 
+  /* ── Get current month date range ── */
+  function getCurrentMonthRange() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+    return {
+      from: `${y}-${m}-01`,
+      to:   `${y}-${m}-${String(lastDay).padStart(2, '0')}`
+    };
+  }
+
   /* ── Filter blank rows ── */
   function filterBlank(arr) {
     return (arr || []).filter(e => e.amount && e.category && e.timestamp);
@@ -141,6 +153,17 @@ const Analytics = (() => {
     if (loadingEl) loadingEl.style.display = 'flex';
     if (contentEl) contentEl.style.display = 'none';
 
+    // Apply current-month default if no date range is set
+    if (!filterState.dateFrom && !filterState.dateTo) {
+      const range = getCurrentMonthRange();
+      filterState.dateFrom = range.from;
+      filterState.dateTo   = range.to;
+      const fromEl = document.getElementById('anaDateFrom');
+      const toEl   = document.getElementById('anaDateTo');
+      if (fromEl) fromEl.value = range.from;
+      if (toEl)   toEl.value   = range.to;
+    }
+
     try {
       const [filtersData, analyticsData] = await Promise.all([
         API.fetchFilters(),
@@ -151,7 +174,20 @@ const Analytics = (() => {
 
       renderFilterChips('anaCategoryChips', filtersData.categories || [], 'categories');
       renderFilterChips('anaSourceChips',   filtersData.sources   || [], 'sources');
-      renderFilterChips('anaTagChips',      filtersData.tags      || [], 'tags');
+
+      // Build top-10 tags sorted by usage count from loaded expenses
+      const tagCountMap = {};
+      (analyticsData.recentExpenses || []).forEach(e => {
+        (e.tags || '').split(/\s+/).forEach(t => {
+          const trimmed = t.trim().toLowerCase();
+          if (trimmed) tagCountMap[trimmed] = (tagCountMap[trimmed] || 0) + 1;
+        });
+      });
+      const top10Tags = Object.entries(tagCountMap)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10)
+        .map(([tag]) => tag);
+      renderFilterChips('anaTagChips', top10Tags, 'tags');
 
       renderResults();
 
@@ -188,10 +224,14 @@ const Analytics = (() => {
     });
 
     document.getElementById('anaResetBtn')?.addEventListener('click', () => {
-      filterState = { categories: [], sources: [], tags: [], dateFrom: '', dateTo: '', tagSearch: '' };
-      document.getElementById('anaDateFrom').value = '';
-      document.getElementById('anaDateTo').value   = '';
-      document.getElementById('anaTagSearch').value = '';
+      const range = getCurrentMonthRange();
+      filterState = { categories: [], sources: [], tags: [], dateFrom: range.from, dateTo: range.to, tagSearch: '' };
+      const fromEl = document.getElementById('anaDateFrom');
+      const toEl   = document.getElementById('anaDateTo');
+      const searchEl = document.getElementById('anaTagSearch');
+      if (fromEl)   fromEl.value   = range.from;
+      if (toEl)     toEl.value     = range.to;
+      if (searchEl) searchEl.value = '';
       load();
     });
 

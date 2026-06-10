@@ -52,9 +52,13 @@
   --radius-xl: 28px;
 
   /* Spacing */
+  --safe-top:    env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
   --nav-height: 64px;
   --bar-height: 64px;
+  --nav-margin: 12px;  /* horizontal gap so nav pill floats from screen edges */
 
   /* Transitions */
   --transition: 200ms cubic-bezier(0.4,0,0.2,1);
@@ -108,7 +112,13 @@ body {
   min-height: 100%;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+  /* When action-bar is showing (home tab): nav + bar + safe + content gap
+     When action-bar hidden (other tabs): nav + safe + content gap            */
   padding-bottom: calc(var(--nav-height) + var(--bar-height) + var(--safe-bottom) + 16px);
+}
+/* When action-bar is hidden (non-home tabs), reduce body bottom padding */
+body.no-action-bar {
+  padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px);
 }
 
 /* ── Typography ── */
@@ -125,7 +135,9 @@ h3 { font-size: 16px; font-weight: 600; }
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
+  /* Push content below the phone status bar (time, battery, signal) */
   padding: 14px 18px;
+  padding-top: calc(14px + var(--safe-top));
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -604,20 +616,26 @@ canvas { display: block; width: 100% !important; }
 /* ── Bottom Navigation ── */
 .bottom-nav {
   position: fixed;
-  bottom: calc(var(--bar-height) + var(--safe-bottom));
-  left: 0;
-  right: 0;
+  /* Default: sits at the very bottom with safe-area breathing room */
+  bottom: calc(var(--safe-bottom) + 8px);
+  left: var(--nav-margin);
+  right: var(--nav-margin);
   height: var(--nav-height);
   background: var(--surface);
-  border-top: 1px solid var(--border);
-  border-radius: 20px 20px 0 0;
+  border: 1px solid var(--border);
+  border-radius: 22px;   /* pill shape — floats away from all edges */
   display: flex;
   z-index: 300;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 -4px 24px rgba(0,0,0,0.10);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.10), 0 2px 12px rgba(0,0,0,0.08);
   padding: 0 8px;
   gap: 4px;
+  transition: bottom var(--transition);
+}
+/* When the action-bar is visible (home tab), push nav up above it */
+.nav-above-bar {
+  bottom: calc(var(--bar-height) + var(--safe-bottom) + 8px);
 }
 
 .nav-btn {
@@ -665,14 +683,19 @@ canvas { display: block; width: 100% !important; }
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--safe-bottom);
-  height: var(--bar-height);
+  bottom: 0;
+  /* Include safe area so bar sits above home indicator on iPhone */
+  padding-bottom: calc(10px + var(--safe-bottom));
+  padding-top: 10px;
+  padding-left: 14px;
+  padding-right: 14px;
+  min-height: calc(var(--bar-height) + var(--safe-bottom));
   background: var(--surface);
   border-top: 1px solid var(--border);
-  padding: 10px 14px;
   display: flex;
   gap: 10px;
   z-index: 301;
+  align-items: center;
 }
 
 .action-bar.hidden { display: none; }
@@ -1103,15 +1126,15 @@ canvas { display: block; width: 100% !important; }
   .top-bar .top-bar-left { max-width: 600px; }
   .top-bar .top-bar-right { position: absolute; right: 20px; }
 
-  /* Floating pill nav on desktop */
+  /* Floating pill nav on desktop — centred, bounded width */
   .bottom-nav {
     max-width: 560px;
     left: 50%;
     right: auto;
     transform: translateX(-50%);
-    border-radius: 20px 20px 0 0;
-    border-left: 1px solid var(--border);
-    border-right: 1px solid var(--border);
+    border-radius: 22px;
+    margin-left: 0;
+    margin-right: 0;
   }
   .action-bar {
     max-width: 600px;
