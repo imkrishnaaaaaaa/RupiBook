@@ -36,6 +36,14 @@ const API = (() => {
 
   return {
     /**
+     * GET ?action=version
+     * Returns { version: "1.1.0" } — the deployed AppScript version.
+     */
+    fetchVersion() {
+      return get('version');
+    },
+
+    /**
      * GET ?action=config
      * Returns { categories: [], mapping: {} }
      */

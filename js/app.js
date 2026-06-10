@@ -5,6 +5,7 @@
 /* ─── App State ─── */
 const App = {
   currentPage: 'home',
+  returnPage:  'home',   // last main page — where sub-pages (code/docs) return to
   configData:  null,
   toastTimer:  null,
   pwaPrompt:   null,
@@ -159,8 +160,14 @@ function hideToast() {
 }
 
 /* ─── Page Navigation ─── */
+// Pages reachable from the bottom nav (used to remember where sub-pages go "Back" to)
+const MAIN_PAGES = ['home', 'dashboard', 'analytics', 'settings'];
+
 function navigateTo(page) {
   App.currentPage = page;
+  // Remember the last main page so sub-page "Back" buttons know where to return.
+  if (MAIN_PAGES.includes(page)) App.returnPage = page;
+
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.getElementById(`${page}Page`)?.classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -168,9 +175,11 @@ function navigateTo(page) {
   });
   document.querySelector('.action-bar')?.classList.toggle('hidden', page !== 'home');
 
-  if (page === 'dashboard') Dashboard.load();
-  if (page === 'analytics') Analytics.load();
-  if (page === 'settings')  Settings.render();
+  if (page === 'dashboard')  Dashboard.load();
+  if (page === 'analytics')  Analytics.load();
+  if (page === 'settings')   Settings.render();
+  if (page === 'codeViewer') { CodeViewer.render(); window.scrollTo(0, 0); }
+  if (page === 'docs')       { Docs.render();       window.scrollTo(0, 0); }
 }
 
 /* ═══════════════════════════════════════════
@@ -473,6 +482,10 @@ const Home = {
       Notifications.send('✅ Expense Saved', `${fmtMoney(amount)} · ${category}`);
 
       this.clearForm();
+
+      // Non-blocking version check on add (uses the 6h cache, so it rarely hits
+      // the network) — surfaces the update banner if the backend is outdated.
+      VersionCheck.check();
     } catch (e) {
       showToast({ icon: '❌', title: 'Save Failed', message: e.message });
     } finally {
@@ -702,6 +715,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Init home page
   await Home.init();
   navigateTo('home');
+
+  // Wire up version banner / code viewer / docs buttons (once)
+  initVersionFeatures();
+
+  // Fire the version check WITHOUT awaiting — the expense form is already usable.
+  // A failed/slow check never blocks or crashes the UI.
+  VersionCheck.check();
 
   // Service worker — only on HTTP/HTTPS, not file://
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {

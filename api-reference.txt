@@ -1,0 +1,150 @@
+RupiBook — API Reference
+========================
+
+This file documents every request the PWA makes to the Google Apps Script Web App
+and the shape of the response it sends back. It is a development reference only
+(it is NOT loaded by the app at runtime) — keep it next to appscript-source.txt so
+the request/response contracts are easy to compare while building features.
+
+Base URL: the deployed Web App "/exec" URL configured per profile in Settings.
+
+Transport notes
+---------------
+- GET requests use a query string:  <BASE_URL>?action=<name>
+- POST requests send a JSON body (no action param) to <BASE_URL>
+- All responses are JSON (ContentService.MimeType.JSON).
+- The Apps Script Web App issues a 302 redirect to a googleusercontent.com URL;
+  fetch() follows it (redirect: "follow"). The service worker strips the
+  "redirected" flag so Safari does not reject the cached response.
+
+
+─────────────────────────────────────────────────────────────────────────────
+GET ?action=version                                            (added in 1.1.0)
+─────────────────────────────────────────────────────────────────────────────
+Purpose : Report the deployed script version so the UI can detect a mismatch.
+Request : GET <BASE_URL>?action=version
+Response:
+  {
+    "version": "1.1.0"
+  }
+
+
+─────────────────────────────────────────────────────────────────────────────
+GET ?action=config
+─────────────────────────────────────────────────────────────────────────────
+Purpose : Categories and the category→sources mapping (from the "Config" sheet).
+Request : GET <BASE_URL>?action=config
+Response:
+  {
+    "categories": ["Food", "Transport", "Bills"],
+    "mapping": {
+      "Food":      ["Restaurant", "Cafe"],
+      "Transport": ["Uber", "Fuel"],
+      "Bills":     ["Electricity", "Internet"]
+    }
+  }
+
+
+─────────────────────────────────────────────────────────────────────────────
+GET ?action=dashboard
+─────────────────────────────────────────────────────────────────────────────
+Purpose : Current-month totals + budget usage.
+Request : GET <BASE_URL>?action=dashboard
+Response:
+  {
+    "month":         "2026-06",
+    "totalSpent":    12450,
+    "monthlyLimit":  25000,
+    "remaining":     12550,
+    "budgetPercent": 50,
+    "categoryTotals": { "Food": 4200, "Bills": 8250 }
+  }
+
+
+─────────────────────────────────────────────────────────────────────────────
+GET ?action=recent
+─────────────────────────────────────────────────────────────────────────────
+Purpose : Last 20 expense rows, newest first.
+Request : GET <BASE_URL>?action=recent
+Response (array):
+  [
+    {
+      "timestamp":   "2026-06-09 21:30:00",
+      "amount":      250,
+      "category":    "Food",
+      "source":      "Cafe",
+      "paymentMode": "UPI",
+      "tags":        "#food #cafe",
+      "comments":    "evening coffee"
+    }
+  ]
+
+
+─────────────────────────────────────────────────────────────────────────────
+GET ?action=analytics
+─────────────────────────────────────────────────────────────────────────────
+Purpose : Aggregations for the Analytics page.
+Request : GET <BASE_URL>?action=analytics
+Response:
+  {
+    "categoryBreakdown": { "Food": 4200, "Bills": 8250 },
+    "sourceBreakdown":   { "Cafe": 1200, "Electricity": 5000 },
+    "monthlyTrend":      { "2026-05": 18000, "2026-06": 12450 },
+    "recentExpenses":    [ /* same shape as ?action=recent */ ]
+  }
+
+
+─────────────────────────────────────────────────────────────────────────────
+GET ?action=filters
+─────────────────────────────────────────────────────────────────────────────
+Purpose : Distinct values for the Analytics filter chips.
+Request : GET <BASE_URL>?action=filters
+Response:
+  {
+    "categories": ["Bills", "Food", "Transport"],
+    "sources":    ["Cafe", "Electricity", "Uber"],
+    "tags":       ["#cafe", "#food", "#fuel"]
+  }
+
+
+─────────────────────────────────────────────────────────────────────────────
+POST  (save a new expense)
+─────────────────────────────────────────────────────────────────────────────
+Purpose : Append a new expense row and run a budget check.
+Request : POST <BASE_URL>
+  {
+    "amount":      250,
+    "category":    "Food",
+    "source":      "Cafe",
+    "paymentMode": "UPI",
+    "tags":        "#food #cafe",
+    "comments":    "evening coffee"
+  }
+Response (success):
+  {
+    "status":  "ok",
+    "message": "✅ Logged · Food. Month so far: ₹12,450 / ₹25,000."
+  }
+Response (budget alert — message contains the warning text):
+  {
+    "status":  "ok",
+    "message": "🚨 Overall: ₹26,000 of ₹25,000 (104%). ₹-1,000 left."
+  }
+Response (error):
+  {
+    "status":  "error",
+    "message": "Error: <details>"
+  }
+
+
+─────────────────────────────────────────────────────────────────────────────
+POST  (undo last entry)
+─────────────────────────────────────────────────────────────────────────────
+Purpose : Delete the most recent expense row.
+Request : POST <BASE_URL>
+  { "action": "undo" }
+Response:
+  {
+    "status":  "ok",
+    "message": "↩️ Removed: ₹250 · Food"
+  }

@@ -39,6 +39,26 @@
   <!-- ── Toast ── -->
   <div id="toast" role="status" aria-live="polite"></div>
 
+  <!-- ── Version Mismatch Banner (modal) ── -->
+  <div id="versionBanner" class="version-banner" style="display:none" role="dialog" aria-modal="true" aria-labelledby="vbTitle">
+    <div class="version-banner-inner">
+      <button class="version-banner-close" id="versionBannerClose" aria-label="Dismiss">✕</button>
+      <div class="version-banner-icon">⚠️</div>
+      <h2 id="vbTitle">AppScript Update Required</h2>
+      <p>Your deployed Google Apps Script is out of date. Update it to the latest version to avoid unexpected behavior.</p>
+      <div class="version-banner-info">
+        <span>Your version: <strong id="vbCurrentVer">—</strong></span>
+        <span>Latest version: <strong id="vbLatestVer">—</strong></span>
+      </div>
+      <div class="version-banner-actions">
+        <button class="btn btn-primary" id="vbCopyCode">📋 Copy Latest AppScript</button>
+        <button class="btn btn-secondary" id="vbShowCode">👁 View Code</button>
+        <button class="btn btn-secondary" id="vbOpenDocs">📖 Open Documentation</button>
+      </div>
+      <button class="btn btn-success version-banner-confirm" id="vbYesUpdated">✅ Yes, I’ve updated</button>
+    </div>
+  </div>
+
   <!-- ══════════════════════════════════════
        HOME PAGE
   ════════════════════════════════════════ -->
@@ -311,6 +331,29 @@
       </div>
     </div>
 
+    <!-- Help & Documentation -->
+    <div class="settings-section">
+      <div class="settings-section-title">Help &amp; Documentation</div>
+      <div class="card" style="padding:8px">
+        <button class="settings-link" id="openDocsLink">
+          <span class="settings-link-icon">📖</span>
+          <span class="settings-link-text">
+            <span class="settings-link-title">Setup Documentation</span>
+            <span class="settings-link-sub">Step-by-step guide to set up RupiBook</span>
+          </span>
+          <span class="settings-link-arrow">›</span>
+        </button>
+        <button class="settings-link" id="openCodeLink">
+          <span class="settings-link-icon">📄</span>
+          <span class="settings-link-text">
+            <span class="settings-link-title">View AppScript Code</span>
+            <span class="settings-link-sub">Copy the latest backend code to deploy</span>
+          </span>
+          <span class="settings-link-arrow">›</span>
+        </button>
+      </div>
+    </div>
+
     <!-- About -->
     <div class="settings-section">
       <div class="settings-section-title">About</div>
@@ -318,13 +361,48 @@
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
             <div style="font-size:14px;font-weight:600">RupiBook PWA</div>
-            <div class="text-muted" style="font-size:12px;margin-top:2px">Backed by Google Sheets · v1.0</div>
+            <div class="text-muted" style="font-size:12px;margin-top:2px">Backed by Google Sheets · <span id="aboutVersion">v1.0</span></div>
           </div>
           <div style="font-size:24px">💸</div>
         </div>
       </div>
     </div>
 
+  </main>
+
+  <!-- ══════════════════════════════════════
+       APPSCRIPT CODE VIEWER PAGE
+  ════════════════════════════════════════ -->
+  <main id="codeViewerPage" class="page" role="main">
+    <div class="subpage-header">
+      <button class="btn btn-secondary btn-sm" id="codeViewerBack" aria-label="Back">← Back</button>
+      <h2>Latest AppScript Code</h2>
+      <button class="btn btn-primary btn-sm" id="codeViewerCopy">📋 Copy</button>
+    </div>
+    <div class="deploy-instructions card">
+      <h3>How to update</h3>
+      <ol>
+        <li>Open your Google Sheet → <strong>Extensions → Apps Script</strong>.</li>
+        <li>Select all existing code and replace it with the code below (use <strong>Copy</strong>).</li>
+        <li>Click <strong>Deploy → Manage deployments</strong>.</li>
+        <li>Click the ✏️ edit icon on your active deployment.</li>
+        <li>Set <strong>Version</strong> to <strong>New version</strong>, then click <strong>Deploy</strong>.</li>
+        <li>The Web App URL stays the same — no need to change it in Settings.</li>
+      </ol>
+    </div>
+    <pre class="code-block"><code id="codeViewerContent">Loading…</code></pre>
+  </main>
+
+  <!-- ══════════════════════════════════════
+       SETUP DOCUMENTATION PAGE
+  ════════════════════════════════════════ -->
+  <main id="docsPage" class="page" role="main">
+    <div class="subpage-header">
+      <button class="btn btn-secondary btn-sm" id="docsBack" aria-label="Back">← Back</button>
+      <h2>Setup Guide</h2>
+      <span class="subpage-header-spacer"></span>
+    </div>
+    <div id="docsContent" class="docs-content"></div>
   </main>
 
   <!-- ══════════════════════════════════════
@@ -361,6 +439,7 @@
   <script src="js/api.js"></script>
   <script src="js/dashboard.js"></script>
   <script src="js/analytics.js"></script>
+  <script src="js/version.js"></script>
   <script src="js/app.js"></script>
 
 </body>

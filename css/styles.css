@@ -1122,3 +1122,219 @@ canvas { display: block; width: 100% !important; }
     border-right: 1px solid var(--border);
   }
 }
+
+/* ─────────────────────────────────────────────
+   Version Mismatch Banner (modal)
+   ───────────────────────────────────────────── */
+.version-banner {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;            /* visibility driven by inline display + .show opacity */
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+.version-banner.show { opacity: 1; }
+
+.version-banner-inner {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--warning);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 28px 22px 22px;
+  text-align: center;
+  transform: translateY(16px) scale(0.97);
+  transition: transform var(--transition-slow);
+}
+.version-banner.show .version-banner-inner { transform: translateY(0) scale(1); }
+
+.version-banner-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition);
+}
+.version-banner-close:hover { background: var(--border-2); color: var(--text); }
+
+.version-banner-icon { font-size: 44px; line-height: 1; margin-bottom: 10px; }
+.version-banner-inner h2 { margin-bottom: 8px; }
+.version-banner-inner > p {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin-bottom: 16px;
+}
+
+.version-banner-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--warning-alpha);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.version-banner-info strong { color: var(--text); font-weight: 700; }
+
+.version-banner-actions { display: flex; flex-direction: column; gap: 10px; }
+.version-banner-actions .btn { flex: none; width: 100%; }
+.version-banner-confirm { flex: none; width: 100%; margin-top: 12px; }
+
+.btn-success {
+  background: linear-gradient(135deg, var(--success), #0e9f6e);
+  color: #fff;
+  box-shadow: 0 4px 12px var(--success-alpha);
+}
+.btn-success:hover { box-shadow: 0 6px 20px var(--success-alpha); }
+
+/* ─────────────────────────────────────────────
+   Sub-page header (Code Viewer / Docs)
+   ───────────────────────────────────────────── */
+.subpage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.subpage-header h2 { flex: 1; text-align: center; font-size: 17px; }
+.subpage-header .btn-sm { flex: none; }
+.subpage-header-spacer { width: 64px; flex: none; }
+
+/* ── Deploy instructions card ── */
+.deploy-instructions h3 { margin-bottom: 10px; }
+.deploy-instructions ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+.deploy-instructions li { margin-bottom: 4px; }
+.deploy-instructions strong { color: var(--text); }
+
+/* ── Code block ── */
+.code-block {
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 62vh;
+  overflow: auto;
+  white-space: pre;
+  -webkit-overflow-scrolling: touch;
+}
+.code-block code { font-family: inherit; white-space: pre; }
+
+/* ─────────────────────────────────────────────
+   Setup Documentation (Markdown)
+   ───────────────────────────────────────────── */
+.docs-content { font-size: 14px; color: var(--text-2); line-height: 1.7; }
+.docs-content .md-h { color: var(--text); margin: 18px 0 10px; line-height: 1.3; }
+.docs-content .md-h:first-child { margin-top: 0; }
+.docs-content .md-h1 { font-size: 22px; font-weight: 800; }
+.docs-content .md-h2 {
+  font-size: 19px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+.docs-content .md-h3 { font-size: 16px; font-weight: 700; }
+.docs-content .md-h4, .docs-content .md-h5, .docs-content .md-h6 { font-size: 14px; font-weight: 700; }
+.docs-content .md-p { margin: 0 0 12px; }
+.docs-content .md-ul, .docs-content .md-ol { margin: 0 0 12px; padding-left: 22px; }
+.docs-content .md-ul li, .docs-content .md-ol li { margin-bottom: 5px; }
+.docs-content a { color: var(--primary); text-decoration: none; font-weight: 600; }
+.docs-content a:hover { text-decoration: underline; }
+.docs-content strong { color: var(--text); font-weight: 700; }
+.docs-content .md-code {
+  background: var(--surface-3);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 12.5px;
+  color: var(--accent);
+}
+.docs-content .md-pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  overflow-x: auto;
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.docs-content .md-pre code {
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+.docs-content .md-bq {
+  border-left: 3px solid var(--primary);
+  background: var(--primary-alpha);
+  padding: 8px 14px;
+  margin: 0 0 12px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.docs-content .md-bq p { margin: 0; }
+.docs-content .md-hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+.docs-empty { text-align: center; padding: 48px 20px; color: var(--text-3); }
+.docs-empty-icon { font-size: 48px; margin-bottom: 12px; }
+.docs-empty h3 { color: var(--text-2); margin-bottom: 6px; }
+.docs-empty p { font-size: 13px; }
+
+/* ─────────────────────────────────────────────
+   Settings → Help & Documentation links
+   ───────────────────────────────────────────── */
+.settings-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text);
+  transition: background var(--transition);
+}
+.settings-link:hover { background: var(--surface-2); }
+.settings-link + .settings-link { border-top: 1px solid var(--border); }
+.settings-link-icon { font-size: 22px; flex-shrink: 0; }
+.settings-link-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.settings-link-title { font-size: 14px; font-weight: 600; }
+.settings-link-sub { font-size: 12px; color: var(--text-3); }
+.settings-link-arrow { font-size: 22px; color: var(--text-3); flex-shrink: 0; }

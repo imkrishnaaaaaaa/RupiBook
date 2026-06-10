@@ -3,7 +3,7 @@
  * Strategy: Cache-first for static assets, Network-first for API calls.
  */
 
-const CACHE_NAME   = 'rupibook-v1';
+const CACHE_NAME   = 'rupibook-v2';
 const API_HOSTNAME = 'script.google.com';
 
 const STATIC_ASSETS = [
@@ -15,6 +15,9 @@ const STATIC_ASSETS = [
   './js/app.js',
   './js/dashboard.js',
   './js/analytics.js',
+  './js/version.js',
+  './appscript-source.txt',
+  './docs/SETUP_GUIDE.md',
   './manifest.json',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
