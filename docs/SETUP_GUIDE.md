@@ -1,127 +1,195 @@
-# RupiBook Setup Guide
+# RupiBook — Setup Guide
 
-Welcome to **RupiBook** — your personal expense tracker backed by Google Sheets. Follow these steps to get everything up and running in under 10 minutes.
+Get RupiBook running in about 15 minutes. Once set up, it works forever — no recurring costs, no maintenance.
 
----
-
-## Step 1: Create a Google Sheet
-
-1. Open [Google Sheets](https://sheets.google.com) and create a **new blank spreadsheet**.
-2. Give it a name like **"RupiBook Expenses"**.
+**You need:** A Google account (free) and optionally an iPhone (iOS 14+) for the shortcut.
 
 ---
 
-## Step 2: Open Apps Script
+## Step 1 — Create a Google Sheet
 
-1. Inside your Google Sheet, click **Extensions → Apps Script**.
-2. A new Apps Script editor tab will open.
-3. Delete all the existing code in the editor.
+1. Open [sheets.google.com](https://sheets.google.com).
+2. Click **Blank spreadsheet**.
+3. Rename it to something like **RupiBook Expenses** (click the title at the top-left).
 
----
-
-## Step 3: Paste the AppScript Code
-
-1. In the RupiBook app, go to **Settings → View AppScript Code**.
-2. Tap **Copy** to copy the entire code to your clipboard.
-3. Go back to the Apps Script editor and **paste** the code.
-4. Click the **💾 Save** icon (or press `Ctrl+S` / `Cmd+S`).
+That's it — leave the sheet empty. The script in the next step will create all the tabs for you.
 
 ---
 
-## Step 4: Run Setup
+## Step 2 — Add the Apps Script Code
 
-1. In the Apps Script editor, select the function `setupSheets` from the dropdown at the top.
-2. Click **▶ Run**.
-3. You may be asked to grant permissions — click **Review Permissions**, choose your Google account, and click **Allow**.
-4. Once it runs, go back to your Google Sheet. You should see new tabs: **Expenses**, **Budgets**, **Settings**, **Autopay**, **Config**, and **PaymentModes**.
+Google Apps Script is a free tool by Google that lets you add custom backend logic to a Google Sheet. It's what powers RupiBook — receiving data from your phone, writing it to the sheet, and checking your budgets.
+
+> **New to Apps Script?** Follow the visual step-by-step PDF guide with screenshots: **<PDF_LINK>**
+
+1. In your Google Sheet, go to **Extensions → Apps Script**. A new browser tab opens with a code editor.
+2. You'll see some default code — **select all of it and delete it**.
+3. Open [RupiBook](https://rupibook.imkrishna1311.workers.dev/), go to **Settings → View AppScript Code**, and tap **📋 Copy**.
+4. Go back to the Apps Script editor tab and **paste** the code.
+5. Click the **💾 Save** button (or press `Ctrl+S` / `Cmd+S`).
 
 ---
 
-## Step 5: Deploy as a Web App
+## Step 3 — Run the Setup Function
 
-1. In the Apps Script editor, click **Deploy → New deployment**.
-2. Click the ⚙️ gear icon next to "Select type" and choose **Web app**.
-3. Set the following:
-   - **Description**: `RupiBook API`
-   - **Execute as**: `Me`
-   - **Who has access**: `Anyone`
+This step creates all the required sheets inside your spreadsheet.
+
+1. In the Apps Script editor, find the **function dropdown** near the top toolbar (it might say `myFunction` or `doPost`).
+2. Click the dropdown and select **`setupSheets`**.
+3. Click the **▶ Run** button.
+4. A permissions dialog will appear:
+   - Click **Review Permissions**.
+   - Choose your Google account.
+   - You'll see **"Google hasn't verified this app"** — this is normal for personal scripts.
+   - Click **Advanced → Go to [your project name] (unsafe) → Allow**.
+5. Wait a few seconds. Go back to your spreadsheet tab.
+
+You should now see these tabs at the bottom: **Dashboard**, **Expenses**, **Budgets**, **Settings**, **Autopay**, **Config**, **PaymentModes**.
+
+---
+
+## Step 4 — Deploy as a Web App
+
+Deploying creates a URL that RupiBook uses to talk to your Google Sheet.
+
+1. In the Apps Script editor, click **Deploy → New deployment** (top-right).
+2. Click the **⚙️ gear icon** next to "Select type" and choose **Web app**.
+3. Fill in:
+   - **Description:** `RupiBook API` (or anything you like)
+   - **Execute as:** `Me`
+   - **Who has access:** `Anyone`
 4. Click **Deploy**.
-5. Copy the **Web App URL** shown — it looks like `https://script.google.com/macros/s/…/exec`.
+5. You'll see a **Web app URL** — it looks like:
+   ```
+   https://script.google.com/macros/s/AKfycb.../exec
+   ```
+6. **Copy this URL.** You'll need it in the next step.
+
+> **Quick test:** Paste the URL in any browser. You should see `{"status":"ok","message":"RupiBook API Running",...}`. If you do, the backend is working.
 
 ---
 
-## Step 6: Configure RupiBook
+## Step 5 — Connect RupiBook to Your Sheet
 
-1. Open the RupiBook app and go to **Settings**.
-2. Paste your Web App URL into the **Apps Script Web App URL** field.
-3. Tap **Save URL**.
-4. Categories and payment modes will load automatically from your sheet.
+1. Open [RupiBook](https://rupibook.imkrishna1311.workers.dev/) on your phone or browser.
+2. Go to **Settings** (bottom navigation bar).
+3. Under **Google Apps Script URL**, paste the Web App URL you copied.
+4. Tap **Save URL**.
+
+Categories, sources, and payment modes will load automatically from your sheet. You're ready to start logging expenses.
+
+---
+
+## Step 6 — iPhone Shortcut (Optional)
+
+The iOS Shortcut lets you log expenses by double-tapping the back of your phone — without opening any app. It sends the expense to your sheet, shows a budget alert, and opens your UPI app to scan and pay.
+
+**Install the shortcut:** <ICLOUD>
+
+After installing:
+
+1. Open the shortcut once from the **Shortcuts** app and run it to grant network permissions.
+2. Paste your Web App URL when prompted (same URL from Step 4).
+3. On your iPhone, go to **Settings → Accessibility → Touch → Back Tap → Double Tap**.
+4. Select the **RupiBook** shortcut.
+
+Done. Double-tap the back of your phone → the logging flow starts.
+
+> Requires iPhone 8 or newer. A thick phone case can dampen the tap — try Triple Tap if Double Tap is unreliable.
 
 ---
 
 ## Customising Your Data
 
-### Categories & Sources (`Config` sheet)
-- Column **A** = Category name (e.g., `Food`, `Transport`)
-- Column **B** = Source name (e.g., `Zomato/Swiggy`, `Rapido/Uber`)
-- Add as many rows as you need. The app will pick them up on the next config refresh.
+All customisation is done directly in your Google Sheet. No code changes needed.
 
-### Payment Modes (`PaymentModes` sheet)
-- Column **A** = Payment mode name (e.g., `UPI`, `Cash`, `CreditCard`)
-- In Settings → tap **↻ Refresh from Sheets** to sync latest payment modes to the app.
+### Categories & Sources → `Config` sheet
 
-### Budgets (`Budgets` sheet)
-- Column **A** = Category name
-- Column **B** = Monthly limit (in ₹)
-- You will get budget alerts when spending crosses the threshold set in the `Settings` sheet.
+| Column A | Column B |
+|----------|----------|
+| Category name (e.g. `Food`) | Source name (e.g. `Zomato/Swiggy`) |
 
-### Autopay (`Autopay` sheet)
-- Logs recurring bills automatically on the day of the month you specify.
-- Columns: `Name`, `Amount`, `Category`, `Day of Month`, `Active` (checkbox)
+Add or remove rows as needed. RupiBook picks up changes on the next refresh.
+
+### Payment Modes → `PaymentModes` sheet
+
+| Column A |
+|----------|
+| Payment mode name (e.g. `UPI`, `Cash`, `CreditCard`) |
+
+After editing, go to **Settings → ↻ Refresh from Sheets** in the app.
+
+### Budgets → `Budgets` sheet
+
+| Column A | Column B |
+|----------|----------|
+| Category name | Monthly limit in ₹ |
+
+When your spending in a category crosses the alert threshold (set in `Settings!B2`, default 75%), you'll get a warning notification.
+
+### Autopay → `Autopay` sheet
+
+| Name | Amount | Category | Day of Month | Active |
+|------|--------|----------|--------------|--------|
+| Netflix | 199 | Entertainment | 1 | ✅ |
+| Rent | 12000 | Bills | 1 | ✅ |
+
+Items with **Active** checked are auto-logged on their specified day each month. Untick to pause.
+
+> To enable autopay, set up a daily trigger in Apps Script: **⏰ Triggers → + Add Trigger → Function: `logAutopay` → Time-driven → Day timer → Pick a time → Save**.
 
 ---
 
 ## Updating the AppScript
 
-Whenever a new version of RupiBook is released, you will see an **"AppScript Update Required"** banner. To update:
+When a new version of RupiBook is released, you may see an **"AppScript Update Required"** banner in the app.
 
-1. Go to **Settings → View AppScript Code** and copy the latest code.
-2. In Apps Script, paste and save the new code.
-3. Click **Deploy → Manage deployments**.
-4. Click the ✏️ edit icon on your existing deployment.
-5. Set **Version** to **New version**, then click **Deploy**.
-6. Back in RupiBook, tap **✅ Yes, I've updated** on the banner.
+1. Go to **Settings → View AppScript Code** and tap **📋 Copy**.
+2. Open the Apps Script editor and replace all existing code with the new code.
+3. Click **💾 Save**.
+4. Go to **Deploy → Manage deployments**.
+5. Click the **✏️ edit icon** on your existing deployment.
+6. Set **Version** to **New version** and click **Deploy**.
+7. Back in RupiBook, tap **✅ Yes, I've updated**.
 
-> The Web App URL stays the same — no need to change it in Settings.
+> The Web App URL stays the same. You don't need to change it in Settings or in the Shortcut.
 
 ---
 
 ## Troubleshooting
 
 **Categories not loading?**
-- Make sure the Web App URL is saved correctly in Settings.
+- Verify the Web App URL is pasted correctly in Settings (no extra spaces).
 - Ensure the Apps Script is deployed with **Who has access: Anyone**.
 
 **Budget alerts not working?**
-- Check that your `Budgets` sheet has the correct category names (they are case-sensitive).
-- Verify the `Settings` sheet has a monthly limit in cell `B1`.
+- Category names in the `Budgets` sheet must match exactly (they are case-sensitive).
+- Make sure `Settings!B1` contains a number (your overall monthly limit).
 
 **"Failed to fetch" errors?**
-- If you're opening the app directly as a file (`file://`), some browsers block fetch requests. Use a local HTTP server instead:
+- If you're running RupiBook from a local file (`file://`), browsers block network requests. Serve it via HTTP instead:
   ```
   python3 -m http.server 8080
   ```
-  Then open `http://localhost:8080` in your browser.
+  Then open `http://localhost:8080`.
+
+**Shortcut not working?**
+- Run the shortcut once manually from the Shortcuts app to grant network permissions.
+- Ensure the Web App URL inside the shortcut is correct and up to date.
+
+**Wrong time on logged expenses?**
+- The `TIMEZONE` variable at the top of the Apps Script defaults to `Asia/Kolkata`. Change it to your timezone and re-deploy.
 
 ---
 
-## Sheet Structure Reference
+## Sheet Reference
 
 | Sheet | Purpose |
 |-------|---------|
-| `Expenses` | All logged expenses |
-| `Budgets` | Per-category monthly limits |
-| `Settings` | Monthly total limit & alert threshold |
-| `Autopay` | Recurring auto-logged entries |
-| `Config` | Category → Source mapping |
-| `PaymentModes` | Payment method options |
+| **Dashboard** | Auto-generated summary with charts and budget table |
+| **Expenses** | Every logged transaction |
+| **Budgets** | Per-category monthly spending limits |
+| **Settings** | Overall monthly limit (`B1`) and alert threshold % (`B2`) |
+| **Autopay** | Recurring bills — auto-logged on their due day |
+| **Config** | Category → Source mapping (drives app dropdowns) |
+| **PaymentModes** | Available payment method options |
