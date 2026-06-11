@@ -315,14 +315,20 @@
     <div class="settings-section">
       <div class="settings-section-title">Install as App</div>
       <div class="card" style="padding:14px">
-        <div style="font-size:13px;color:var(--text-2);line-height:1.6">
-          <p style="margin-bottom:8px"><strong>📱 Android / iPhone:</strong> PWA install requires the app to be served over HTTP (not opened as a file).</p>
-          <p style="margin-bottom:8px"><strong>Quick setup (local):</strong><br>
-            Run in Terminal on your Mac:<br>
-            <code style="background:var(--surface-3);padding:4px 8px;border-radius:6px;font-size:12px;display:inline-block;margin-top:4px">python3 -m http.server 8080</code>
-          </p>
-          <p>Then on your phone open: <code style="background:var(--surface-3);padding:2px 6px;border-radius:4px;font-size:12px">http://&lt;your-mac-ip&gt;:8080</code><br>
-          <span style="font-size:12px;color:var(--text-3)">Find IP: System Settings → Wi-Fi → details</span></p>
+        <div style="font-size:13px;color:var(--text-2);line-height:1.7">
+
+          <p style="margin-bottom:12px"><strong>🤖 Android (Chrome)</strong><br>
+            Tap the <strong>⋮</strong> menu (top-right) → select <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</p>
+
+          <p style="margin-bottom:12px"><strong>🍎 iOS / iPhone (Safari)</strong><br>
+            Tap the <strong>Share</strong> button <span style="font-size:11px;color:var(--text-3)">(square with an up arrow)</span> at the bottom → scroll down → select <strong>"Add to Home Screen"</strong>.</p>
+
+          <p style="margin-bottom:12px"><strong>💻 Desktop (Chrome / Edge)</strong><br>
+            Click the <strong>install icon</strong> <span style="font-size:11px;color:var(--text-3)">(monitor with a down arrow)</span> in the address bar. Or use the <strong>⋮</strong> menu → <strong>"Save and share"</strong> → <strong>"Install page as app"</strong>.</p>
+
+          <p style="margin-bottom:0;font-size:12px;color:var(--text-3);border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+            Most modern browsers that support Progressive Web Apps (PWA) offer an install option — the exact wording may vary. If you don't see the options above, look for <strong>"Add to Home Screen"</strong>, <strong>"Install"</strong>, or a similar option in your browser's menu.</p>
+
         </div>
         <div id="pwaInstallWrap" style="margin-top:12px;display:none">
           <button class="btn btn-primary btn-full" id="pwaInstallBtn">📲 Install App</button>
