@@ -1,6 +1,6 @@
 /*** ───────── CONFIG (edit these two lines if you like) ───────── ***/
-var TIMEZONE = "Asia/Kolkata";   // your timezone
-var CURRENCY = "₹";              // your currency symbol
+var TIMEZONE = "Asia/Kolkata"; // your timezone
+var CURRENCY = "₹"; // your currency symbol
 
 /*** App version — bump this every time you deploy a new version of this script.
      The RupiBook PWA fetches this via ?action=version and compares it against its
@@ -17,7 +17,9 @@ function doPost(e) {
         var p = JSON.parse(e.postData.contents);
 
         // Special action: undo the last logged expense
-        if (p.action === "undo") { return undoLast(ss); }
+        if(p.action === "undo") {
+            return undoLast(ss);
+        }
 
         var sheet = ss.getSheetByName("Expenses");
         var now = new Date();
@@ -34,10 +36,16 @@ function doPost(e) {
         sheet.appendRow([timestamp, amount, category, source, paymentMode, tags, comments, month]);
 
         var msg = checkBudgets(ss, month, category);
-        return json({ status: "ok", message: msg });
+        return json({
+            status: "ok",
+            message: msg
+        });
 
     } catch (err) {
-        return json({ status: "error", message: "Error: " + err });
+        return json({
+            status: "error",
+            message: "Error: " + err
+        });
     } finally {
         lock.releaseLock();
     }
@@ -48,27 +56,29 @@ function doGet(e) {
 
     var action = e.parameter.action || "";
 
-    if (action === "version") {
-        return json({ version: APPSCRIPT_VERSION });
+    if(action === "version") {
+        return json({
+            version: APPSCRIPT_VERSION
+        });
     }
 
-    if (action === "config") {
+    if(action === "config") {
         return json(getConfigData());
     }
 
-    if (action === "dashboard") {
+    if(action === "dashboard") {
         return json(getDashboardData());
     }
 
-    if (action === "recent") {
+    if(action === "recent") {
         return json(getRecentExpenses());
     }
 
-    if (action === "analytics") {
+    if(action === "analytics") {
         return json(getAnalyticsData());
     }
 
-    if (action === "filters") {
+    if(action === "filters") {
         return json(getFilterValues());
     }
 
@@ -86,12 +96,12 @@ function checkBudgets(ss, month, category) {
     var threshold = 0.8;
     var totalLimit = 0;
 
-    if (settings) {
+    if(settings) {
         totalLimit = Number(settings.getRange("B1").getValue()) || 0;
 
         var t = Number(settings.getRange("B2").getValue());
 
-        if (t > 0) {
+        if(t > 0) {
             threshold = t / 100;
         }
     }
@@ -101,20 +111,20 @@ function checkBudgets(ss, month, category) {
     var totalSpent = 0;
     var catSpent = 0;
 
-    for (var i = 1; i < data.length; i++) {
-        if (!data[i][0] || data[i][1] === "") {
+    for(var i = 1; i < data.length; i++) {
+        if(!data[i][0] || data[i][1] === "") {
             continue;
         }
 
         var rowMonth = data[i][7];
 
-        if (rowMonth instanceof Date) {
+        if(rowMonth instanceof Date) {
             rowMonth = Utilities.formatDate(rowMonth, TIMEZONE, "yyyy-MM");
         }
 
         rowMonth = String(rowMonth || "").trim();
 
-        if (rowMonth !== month) {
+        if(rowMonth !== month) {
             continue;
         }
 
@@ -122,7 +132,7 @@ function checkBudgets(ss, month, category) {
 
         totalSpent += amt;
 
-        if (String(data[i][2] || "").trim() === category) {
+        if(String(data[i][2] || "").trim() === category) {
             catSpent += amt;
         }
     }
@@ -131,11 +141,11 @@ function checkBudgets(ss, month, category) {
 
     var budgets = ss.getSheetByName("Budgets");
 
-    if (budgets) {
+    if(budgets) {
         var b = budgets.getDataRange().getValues();
 
-        for (var j = 1; j < b.length; j++) {
-            if (String(b[j][0] || "").trim() === String(category || "").trim()) {
+        for(var j = 1; j < b.length; j++) {
+            if(String(b[j][0] || "").trim() === String(category || "").trim()) {
                 catLimit = Number(b[j][1]) || 0;
                 break;
             }
@@ -144,15 +154,15 @@ function checkBudgets(ss, month, category) {
 
     var alerts = [];
 
-    if (catLimit > 0 && catSpent >= threshold * catLimit) {
+    if(catLimit > 0 && catSpent >= threshold * catLimit) {
         alerts.push(`⚠️ ${category}: ${CURRENCY}${fmt(catSpent)} of ${CURRENCY}${fmt(catLimit)} (${Math.round((catSpent / catLimit) * 100)}%). ${CURRENCY}${fmt(catLimit - catSpent)} left.`);
     }
 
-    if (totalLimit > 0 && totalSpent >= threshold * totalLimit) {
+    if(totalLimit > 0 && totalSpent >= threshold * totalLimit) {
         alerts.push(`🚨 Overall: ${CURRENCY}${fmt(totalSpent)} of ${CURRENCY}${fmt(totalLimit)} (${Math.round((totalSpent / totalLimit) * 100)}%). ${CURRENCY}${fmt(totalLimit - totalSpent)} left.`);
     }
 
-    if (alerts.length === 0) {
+    if(alerts.length === 0) {
         return `✅ Logged · ${category}. Month so far: ${CURRENCY}${fmt(totalSpent)}${totalLimit > 0 ? ` / ${CURRENCY}${fmt(totalLimit)}` : ""}.`;
     }
 
@@ -163,12 +173,18 @@ function checkBudgets(ss, month, category) {
 function undoLast(ss) {
     var sheet = ss.getSheetByName("Expenses");
     var last = sheet.getLastRow();
-    if (last > 1) {
+    if(last > 1) {
         var row = sheet.getRange(last, 1, 1, 8).getValues()[0];
         sheet.deleteRow(last);
-        return json({ status: "ok", message: "↩️ Removed: " + CURRENCY + fmt(row[1]) + " · " + row[2] });
+        return json({
+            status: "ok",
+            message: "↩️ Removed: " + CURRENCY + fmt(row[1]) + " · " + row[2]
+        });
     }
-    return json({ status: "ok", message: "Nothing to undo." });
+    return json({
+        status: "ok",
+        message: "Nothing to undo."
+    });
 }
 
 /*** ───────── AUTOPAY: auto-log items due today (daily trigger) ───────── ***/
@@ -176,16 +192,19 @@ function logAutopay() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var ap = ss.getSheetByName("Autopay");
     var exp = ss.getSheetByName("Expenses");
-    if (!ap) return;
+    if(!ap) return;
     var today = new Date();
     var dayNum = Number(Utilities.formatDate(today, TIMEZONE, "d"));
     var timestamp = Utilities.formatDate(today, TIMEZONE, "yyyy-MM-dd HH:mm:ss");
     var month = Utilities.formatDate(today, TIMEZONE, "yyyy-MM");
     var rows = ap.getDataRange().getValues();
-    for (var i = 1; i < rows.length; i++) {
-        var name = rows[i][0], amount = rows[i][1], category = rows[i][2];
-        var day = Number(rows[i][3]), active = rows[i][4];
-        if (active === true && day === dayNum) {
+    for(var i = 1; i < rows.length; i++) {
+        var name = rows[i][0],
+            amount = rows[i][1],
+            category = rows[i][2];
+        var day = Number(rows[i][3]),
+            active = rows[i][4];
+        if(active === true && day === dayNum) {
             exp.appendRow([timestamp, amount, category, name, "Autopay", "autopay", "Auto-logged: " + name, month]);
         }
     }
@@ -196,9 +215,10 @@ function sendDailyDigest() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var month = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM");
     var data = ss.getSheetByName("Expenses").getDataRange().getValues();
-    var total = 0, byCat = {};
-    for (var i = 1; i < data.length; i++) {
-        if (data[i][7] === month) {
+    var total = 0,
+        byCat = {};
+    for(var i = 1; i < data.length; i++) {
+        if(data[i][7] === month) {
             var amt = Number(data[i][1]) || 0;
             total += amt;
             var c = data[i][2] || "Others";
@@ -212,8 +232,12 @@ function sendDailyDigest() {
     body += "Total: " + CURRENCY + fmt(total) +
         (totalLimit ? " / " + CURRENCY + fmt(totalLimit) + " (" + Math.round(total / totalLimit * 100) + "%)" : "") + "\n\n";
     body += "By category:\n";
-    Object.keys(byCat).sort(function (a, b) { return byCat[b] - byCat[a]; })
-        .forEach(function (c) { body += "• " + c + ": " + CURRENCY + fmt(byCat[c]) + "\n"; });
+    Object.keys(byCat).sort(function(a, b) {
+            return byCat[b] - byCat[a];
+        })
+        .forEach(function(c) {
+            body += "• " + c + ": " + CURRENCY + fmt(byCat[c]) + "\n";
+        });
 
     MailApp.sendEmail(Session.getEffectiveUser().getEmail(), "💰 Expense digest — " + month, body);
 }
@@ -222,32 +246,44 @@ function sendDailyDigest() {
 function setupSheets() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
+    // 1. Expenses Sheet
     var exp = ss.getSheetByName("Expenses") || ss.insertSheet("Expenses");
-    if (exp.getLastRow() === 0) {
+    if(exp.getLastRow() === 0) {
         exp.appendRow(["Timestamp", "Amount", "Category", "Source", "Payment Mode", "Tags", "Comments", "Month"]);
         exp.getRange("1:1").setFontWeight("bold").setBackground("#4285F4").setFontColor("#ffffff");
         exp.setFrozenRows(1);
     }
 
+    // 2. Budgets Sheet
     var bud = ss.getSheetByName("Budgets") || ss.insertSheet("Budgets");
-    if (bud.getLastRow() === 0) {
+    if(bud.getLastRow() === 0) {
         bud.appendRow(["Category", "Monthly Limit"]);
         bud.getRange(2, 1, 8, 2).setValues([
-            ["Food", 2000], ["Groceries", 5000], ["Transport", 2000], ["Shopping", 3000],
-            ["Bills", 4000], ["Entertainment", 1500], ["Health", 2000], ["Others", 1000]
+            ["Food", 2000],
+            ["Groceries", 5000],
+            ["Transport", 2000],
+            ["Shopping", 3000],
+            ["Bills", 4000],
+            ["Entertainment", 1500],
+            ["Health", 2000],
+            ["Others", 1000]
         ]);
         bud.getRange("1:1").setFontWeight("bold").setBackground("#34A853").setFontColor("#ffffff");
     }
 
+    // 3. Settings Sheet
     var set = ss.getSheetByName("Settings") || ss.insertSheet("Settings");
-    if (set.getLastRow() === 0) {
-        set.getRange("A1").setValue("Monthly Total Limit"); set.getRange("B1").setValue(25000);
-        set.getRange("A2").setValue("Alert Threshold %"); set.getRange("B2").setValue(75);
+    if(set.getLastRow() === 0) {
+        set.getRange("A1").setValue("Monthly Total Limit");
+        set.getRange("B1").setValue(25000);
+        set.getRange("A2").setValue("Alert Threshold %");
+        set.getRange("B2").setValue(75);
         set.getRange("A1:A2").setFontWeight("bold");
     }
 
+    // 4. Autopay Sheet
     var ap = ss.getSheetByName("Autopay") || ss.insertSheet("Autopay");
-    if (ap.getLastRow() === 0) {
+    if(ap.getLastRow() === 0) {
         ap.appendRow(["Name", "Amount", "Category", "Day of Month", "Active"]);
         ap.getRange(2, 1, 3, 5).setValues([
             ["Netflix", 0, "Entertainment", 1, true],
@@ -258,33 +294,176 @@ function setupSheets() {
         ap.getRange("1:1").setFontWeight("bold").setBackground("#FBBC04");
     }
 
+    // 5. Config Sheet
     var config = ss.getSheetByName("Config") || ss.insertSheet("Config");
-    if (config.getLastRow() === 0) {
+    if(config.getLastRow() === 0) {
         config.appendRow(["Category", "Source"]);
         config.getRange(2, 1, 25, 2).setValues([
-            ["Transport", "Rapido/Uber"], ["Transport", "Petrol"], ["Transport", "CityTravel"], ["Transport", "LongTravel"], ["Transport", "Others"],
-            ["Food", "Zomato/Swiggy"], ["Food", "FastFood"], ["Food", "EatOutside"],
-            ["Groceries", "QuickDelivery"], ["Groceries", "Outside"],
-            ["Entertainment", "Movies"], ["Entertainment", "Subscriptions"], ["Entertainment", "Offline"],
-            ["Shopping", "E-Commerce"], ["Shopping", "Offline"], ["Shopping", "Others"],
-            ["Bills", "MobileRecharge"], ["Bills", "Electricity"], ["Bills", "Rent"], ["Bills", "Others"],
-            ["Health", "Consultation"], ["Health", "Medicine"],
-            ["Donate", "Online"], ["Donate", "Offline"],
+            ["Transport", "Rapido/Uber"],
+            ["Transport", "Petrol"],
+            ["Transport", "CityTravel"],
+            ["Transport", "LongTravel"],
+            ["Transport", "Others"],
+            ["Food", "Zomato/Swiggy"],
+            ["Food", "FastFood"],
+            ["Food", "EatOutside"],
+            ["Groceries", "QuickDelivery"],
+            ["Groceries", "Outside"],
+            ["Entertainment", "Movies"],
+            ["Entertainment", "Subscriptions"],
+            ["Entertainment", "Offline"],
+            ["Shopping", "E-Commerce"],
+            ["Shopping", "Offline"],
+            ["Shopping", "Others"],
+            ["Bills", "MobileRecharge"],
+            ["Bills", "Electricity"],
+            ["Bills", "Rent"],
+            ["Bills", "Others"],
+            ["Health", "Consultation"],
+            ["Health", "Medicine"],
+            ["Donate", "Online"],
+            ["Donate", "Offline"],
             ["Others", "Others"]
         ]);
         config.getRange("1:1").setFontWeight("bold").setBackground("#EA4335").setFontColor("#ffffff");
     }
 
+    // 6. PaymentModes Sheet
     var pm = ss.getSheetByName("PaymentModes") || ss.insertSheet("PaymentModes");
-    if (pm.getLastRow() === 0) {
+    if(pm.getLastRow() === 0) {
         pm.appendRow(["Payment Mode"]);
         pm.getRange(2, 1, 9, 1).setValues([
-            ["Cash"], ["UPI"], ["PhonePe"], ["GPay"], ["Paytm"], ["Amazon Wallet"], ["CreditCard"], ["DebitCard"], ["NetBanking"]
+            ["Cash"],
+            ["UPI"],
+            ["PhonePe"],
+            ["GPay"],
+            ["Paytm"],
+            ["Amazon Wallet"],
+            ["CreditCard"],
+            ["DebitCard"],
+            ["NetBanking"]
         ]);
         pm.getRange("1:1").setFontWeight("bold").setBackground("#9C27B0").setFontColor("#ffffff");
     }
 
-    try { SpreadsheetApp.getUi().alert("✅ All sheets are ready!"); } catch (e) { }
+    // 7. Dashboard Sheet (Created and placed first)
+    var dash = ss.getSheetByName("Dashboard") || ss.insertSheet("Dashboard");
+    ss.setActiveSheet(dash);
+    ss.moveActiveSheet(1); // Moves Dashboard to the very first tab
+    dash.clear(); // Clears existing layout to build fresh
+
+    // Title Header
+    dash.getRange("A1").setValue("📊 EXPENSE DASHBOARD");
+    dash.getRange("A1:K1").merge().setFontSize(16).setFontWeight("bold").setFontColor("#1F497D").setVerticalAlignment("middle");
+    dash.setRowHeight(1, 40);
+
+    // Monthly KPI Cards (Summary Table)
+    dash.getRange("A3").setValue("This month");
+    dash.getRange("B3").setFormula("=EOMONTH(TODAY(),-1)+1").setNumberFormat("mmmm yyyy");
+
+    dash.getRange("A4").setValue("Total spent");
+    dash.getRange("B4").setFormula("=SUM(C11:C18)").setNumberFormat("$#,##0.00");
+
+    dash.getRange("A5").setValue("Monthly limit");
+    dash.getRange("B5").setFormula("=Settings!B1").setNumberFormat("$#,##0.00");
+
+    dash.getRange("A6").setValue("Remaining");
+    dash.getRange("B6").setFormula("=B5-B4").setNumberFormat("$#,##0.00");
+
+    dash.getRange("A7").setValue("% used");
+    dash.getRange("B7").setFormula("=B4/B5").setNumberFormat("0.00%");
+
+    // Styling KPI Cards
+    dash.getRange("A3:A7").setFontWeight("bold").setBackground("#F3F3F3");
+    dash.getRange("A3:B7").setBorder(true, true, true, true, true, true, "#CCCCCC", SpreadsheetApp.BorderStyle.SOLID);
+
+    // Category Budget Table Headers
+    var tableHeaders = ["Category", "Limit", "Spent", "Remaining", "% Used"];
+    dash.getRange("A10:E10").setValues([tableHeaders])
+        .setFontWeight("bold")
+        .setBackground("#4285F4")
+        .setFontColor("#ffffff")
+        .setHorizontalAlignment("center");
+
+    // Fill Category Table rows (linked dynamically to the Budgets Sheet)
+    for(var i = 11; i <= 18; i++) {
+        var budgetRow = i - 9; // Rows 2 to 9 on Budgets
+        dash.getRange("A" + i).setFormula("=Budgets!A" + budgetRow);
+        dash.getRange("B" + i).setFormula("=Budgets!B" + budgetRow).setNumberFormat("$#,##0.00");
+        dash.getRange("C" + i).setFormula("=SUMIFS(Expenses!$B:$B, Expenses!$C:$C, $A" + i + ", Expenses!$H:$H, $B$3)").setNumberFormat("$#,##0.00");
+        dash.getRange("D" + i).setFormula("=B" + i + "-C" + i).setNumberFormat("$#,##0.00");
+        dash.getRange("E" + i).setFormula("=IF(B" + i + ">0, C" + i + "/B" + i + ", 0)").setNumberFormat("0.00%");
+    }
+    dash.getRange("A11:E18").setBorder(true, true, true, true, true, true, "#E0E0E0", SpreadsheetApp.BorderStyle.SOLID);
+
+    // Conditional Formatting for % Used (Green if safe, Red if above warning threshold in Settings!B2)
+    var rangeE = dash.getRange("E11:E18");
+    var ruleGreen = SpreadsheetApp.newConditionalFormatRule()
+        .whenNumberLessThanFormula("=Settings!$B$2/100")
+        .setBackground("#D9EAD3")
+        .setFontColor("#274E13")
+        .setRanges([rangeE])
+        .build();
+    var ruleRed = SpreadsheetApp.newConditionalFormatRule()
+        .whenNumberGreaterThanOrEqualToFormula("=Settings!$B$2/100")
+        .setBackground("#F4CCCC")
+        .setFontColor("#660000")
+        .setRanges([rangeE])
+        .build();
+    dash.setConditionalFormatRules([ruleGreen, ruleRed]);
+
+    // Pivot Table 1: Category vs Spent (Sorted Alphabetically)
+    dash.getRange("G10").setFormula("=QUERY(A10:C18, \"select A, C where C > 0 order by A asc\", 1)");
+    dash.getRange("G10:H10").setFontWeight("bold").setBackground("#34A853").setFontColor("#ffffff");
+
+    // Pivot Table 2: Spend By Month (Dynamically calculated from Expenses)
+    dash.getRange("J10").setFormula("=QUERY(Expenses!A:H, \"select H, sum(B) where H is not null group by H label H 'Month', sum(B) 'Spent'\", 1)");
+    dash.getRange("J10:K10").setFontWeight("bold").setBackground("#FBBC04").setFontColor("#ffffff");
+
+    // Format Query output rows
+    dash.getRange("H11:H25").setNumberFormat("$#,##0.00");
+    dash.getRange("J11:J25").setNumberFormat("yyyy-mm");
+    dash.getRange("K11:K25").setNumberFormat("$#,##0.00");
+
+    // Remove existing charts to avoid duplicates when running multiple times
+    var existingCharts = dash.getCharts();
+    for(var k = 0; k < existingCharts.length; k++) {
+        dash.removeChart(existingCharts[k]);
+    }
+
+    // Insert 3D Pie Chart (Expenses by Category)
+    try {
+        var pieChart = dash.newChart()
+            .setChartType(SpreadsheetApp.ChartType.PIE)
+            .addRange(dash.getRange("G10:H18"))
+            .setPosition(20, 1, 0, 0) // Places chart starting at cell A20
+            .setOption('title', 'Expenses by Category')
+            .setOption('is3D', true)
+            .build();
+        dash.insertChart(pieChart);
+    } catch (err) {
+        Logger.log("Pie chart generation failed: " + err.message);
+    }
+
+    // Insert Column Chart (Spend by Month)
+    try {
+        var columnChart = dash.newChart()
+            .setChartType(SpreadsheetApp.ChartType.COLUMN)
+            .addRange(dash.getRange("J10:K18"))
+            .setPosition(20, 6, 0, 0) // Places chart starting at cell F20
+            .setOption('title', 'Spend by Month')
+            .setOption('legend', {
+                position: 'none'
+            })
+            .build();
+        dash.insertChart(columnChart);
+    } catch (err) {
+        Logger.log("Column chart generation failed: " + err.message);
+    }
+
+    try {
+        SpreadsheetApp.getUi().alert("✅ All sheets and Dashboard are ready!");
+    } catch (e) {}
 }
 
 /*** Adds a menu inside the spreadsheet for manual actions ***/
@@ -309,7 +488,7 @@ function fmt(n) {
     var s = String(n);
     var last3 = s.slice(-3);
     var rest = s.slice(0, -3);
-    if (rest !== "") last3 = "," + last3;
+    if(rest !== "") last3 = "," + last3;
     return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + last3;
 }
 
@@ -322,15 +501,15 @@ function getConfigData() {
     var mapping = {};
     var categories = [];
 
-    if (sheet) {
+    if(sheet) {
         var data = sheet.getDataRange().getValues();
-        for (var i = 1; i < data.length; i++) {
+        for(var i = 1; i < data.length; i++) {
             var category = String(data[i][0] || "").trim();
             var source = String(data[i][1] || "").trim();
 
-            if (!category || !source) continue;
+            if(!category || !source) continue;
 
-            if (!mapping[category]) {
+            if(!mapping[category]) {
                 mapping[category] = [];
                 categories.push(category);
             }
@@ -342,11 +521,11 @@ function getConfigData() {
     var pmSheet = ss.getSheetByName("PaymentModes");
     var paymentModes = [];
 
-    if (pmSheet) {
+    if(pmSheet) {
         var pmData = pmSheet.getDataRange().getValues();
-        for (var j = 1; j < pmData.length; j++) {
+        for(var j = 1; j < pmData.length; j++) {
             var mode = String(pmData[j][0] || "").trim();
-            if (mode) paymentModes.push(mode);
+            if(mode) paymentModes.push(mode);
         }
     }
 
@@ -375,11 +554,11 @@ function getDashboardData() {
 
     var rows = expenses.getDataRange().getValues();
 
-    for (var i = 1; i < rows.length; i++) {
+    for(var i = 1; i < rows.length; i++) {
 
         var rowMonth = rows[i][7];
 
-        if (rowMonth instanceof Date) {
+        if(rowMonth instanceof Date) {
             rowMonth = Utilities.formatDate(
                 rowMonth,
                 TIMEZONE,
@@ -387,7 +566,7 @@ function getDashboardData() {
             );
         }
 
-        if (String(rowMonth) !== month) continue;
+        if(String(rowMonth) !== month) continue;
 
         var amount = Number(rows[i][1]) || 0;
         var category = rows[i][2] || "Others";
@@ -406,10 +585,9 @@ function getDashboardData() {
         totalSpent: total,
         monthlyLimit: limit,
         remaining: limit - total,
-        budgetPercent:
-            limit > 0
-                ? Math.round((total / limit) * 100)
-                : 0,
+        budgetPercent: limit > 0 ?
+            Math.round((total / limit) * 100) :
+            0,
         categoryTotals: categoryTotals
     };
 }
@@ -419,17 +597,15 @@ function getRecentExpenses() {
 
     var sheet =
         SpreadsheetApp
-            .getActiveSpreadsheet()
-            .getSheetByName("Expenses");
+        .getActiveSpreadsheet()
+        .getSheetByName("Expenses");
 
     var rows = sheet.getDataRange().getValues();
 
     var result = [];
 
-    for (
-        var i = rows.length - 1;
-        i >= 1 && result.length < 20;
-        i--
+    for(
+        var i = rows.length - 1; i >= 1 && result.length < 20; i--
     ) {
         result.push({
             timestamp: rows[i][0],
@@ -457,14 +633,14 @@ function getAnalyticsData() {
     var monthlyTrend = {};
     var recentExpenses = [];
 
-    for (var i = 1; i < rows.length; i++) {
+    for(var i = 1; i < rows.length; i++) {
 
         var amount = Number(rows[i][1]) || 0;
         var category = rows[i][2] || "Others";
         var source = rows[i][3] || "Unknown";
         var month = rows[i][7];
 
-        if (month instanceof Date) {
+        if(month instanceof Date) {
             month = Utilities.formatDate(
                 month,
                 TIMEZONE,
@@ -484,10 +660,8 @@ function getAnalyticsData() {
             (monthlyTrend[month] || 0) + amount;
     }
 
-    for (
-        var j = rows.length - 1;
-        j >= 1 && recentExpenses.length < 20;
-        j--
+    for(
+        var j = rows.length - 1; j >= 1 && recentExpenses.length < 20; j--
     ) {
 
         recentExpenses.push({
@@ -513,7 +687,7 @@ function getFilterValues() {
 
     var sheet =
         SpreadsheetApp.getActiveSpreadsheet()
-            .getSheetByName("Expenses");
+        .getSheetByName("Expenses");
 
     var rows = sheet.getDataRange().getValues();
 
@@ -521,24 +695,24 @@ function getFilterValues() {
     var sources = {};
     var tags = {};
 
-    for (var i = 1; i < rows.length; i++) {
+    for(var i = 1; i < rows.length; i++) {
 
         var category = String(rows[i][2] || "").trim();
         var source = String(rows[i][3] || "").trim();
         var tagString = String(rows[i][5] || "").trim();
 
-        if (category) categories[category] = true;
-        if (source) sources[source] = true;
+        if(category) categories[category] = true;
+        if(source) sources[source] = true;
 
-        if (tagString) {
+        if(tagString) {
 
             tagString
                 .split(/\s+/)
-                .forEach(function (tag) {
+                .forEach(function(tag) {
 
                     tag = tag.trim();
 
-                    if (!tag) return;
+                    if(!tag) return;
 
                     tags[tag] = true;
                 });
