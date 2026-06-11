@@ -6,7 +6,7 @@ var CURRENCY = "₹"; // your currency symbol
      The RupiBook PWA fetches this via ?action=version and compares it against its
      own RUPIBOOK_UI_VERSION; if they differ it shows an "update required" banner.
      Keep this in sync with RUPIBOOK_UI_VERSION in js/version.js. ***/
-var APPSCRIPT_VERSION = "1.1.0";
+var APPSCRIPT_VERSION = "1.1.1";
 
 /*** ───────── WEB APP: receives data from your iPhone ───────── ***/
 function doPost(e) {

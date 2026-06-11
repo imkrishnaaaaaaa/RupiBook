@@ -13,7 +13,7 @@
  */
 
 /* ─── Version constant (bump on every release, keep in sync with appscript-source.txt) ─── */
-const RUPIBOOK_UI_VERSION = "1.1.0";
+const RUPIBOOK_UI_VERSION = "1.1.1";
 
 /* ─── Tunables ─── */
 const VERSION_CACHE_KEY = "rb_versionCache";        // { version, ts }
@@ -73,10 +73,6 @@ const AppScriptSource = {
         return text;
       })
       .catch(err => {
-        if (window.STATIC_APPSCRIPT_CODE) {
-          this._code = window.STATIC_APPSCRIPT_CODE;
-          return this._code;
-        }
         this._promise = null;   // allow a retry on the next request
         throw err;
       });
@@ -334,12 +330,7 @@ const Docs = {
       container.innerHTML = html || this._empty('📖', 'Documentation coming soon',
         'The setup guide hasn’t been written yet — it will appear here once added.');
     } catch (err) {
-      if (window.STATIC_SETUP_GUIDE) {
-        const html = renderMarkdown(window.STATIC_SETUP_GUIDE);
-        container.innerHTML = html || this._empty('📖', 'Documentation coming soon', '...');
-        return;
-      }
-      container.innerHTML = this._empty('⚠️', 'Couldn’t load the guide', escapeHtml(err.message));
+      container.innerHTML = this._empty('⚠️', 'Couldn\'t load the guide', escapeHtml(err.message));
     }
   },
 
