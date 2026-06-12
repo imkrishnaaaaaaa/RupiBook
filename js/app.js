@@ -333,12 +333,17 @@ const Home = {
   },
 
   /* ─── Slot-based Auto-Tag Helpers ─── */
-  // Converts a display value to one or more hashtags
+  // Converts a dropdown display value to one or more hashtags.
+  // Spaces are removed (e.g. "Super Money" → #SuperMoney).
+  // '/' splits into separate tags (e.g. "Rapido / Uber" → #Rapido #Uber).
   valueToTags(value) {
     return String(value)
-      .split(/[\s\/,&+]+/)
-      .map(w => w.replace(/[^a-zA-Z0-9]/g, '').toLowerCase())
-      .filter(w => w.length > 1)
+      .split('/')                                          // split on '/'
+      .map(part => part.trim())                            // trim whitespace around each part
+      .filter(part => part.length > 0)                     // drop empty parts
+      .map(part => part.replace(/\s+/g, ''))               // remove internal spaces
+      .map(part => part.replace(/[^a-zA-Z0-9]/g, ''))      // strip non-alphanumeric chars
+      .filter(w => w.length > 1)                           // skip single-char fragments
       .map(w => '#' + w);
   },
 

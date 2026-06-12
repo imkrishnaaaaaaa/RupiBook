@@ -231,7 +231,10 @@
         </div>
         <div class="filter-section" style="margin-bottom:0">
           <div class="filter-label">Search</div>
-          <input type="search" id="anaTagSearch" placeholder="Search tags, category, source, comments…" autocomplete="off">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="search" id="anaTagSearch" placeholder="Search tags, category, source, comments…" autocomplete="off" style="flex:1">
+            <button class="btn btn-sm btn-primary" id="anaSearchBtn" style="white-space:nowrap">🔎 Search</button>
+          </div>
         </div>
       </div>
       <p class="section-label">Results</p>

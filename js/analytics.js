@@ -1,5 +1,9 @@
 /**
- * analytics.js — Analytics page with client-side filtering
+ * analytics.js — Analytics page with server-side search
+ *
+ * On initial load: fetches filter chip data + last 20 expenses from getAnalyticsData().
+ * On search: sends all active filters to the server-side ?action=search endpoint,
+ * which returns up to 50 matching expenses (newest first).
  */
 
 const Analytics = (() => {
@@ -31,10 +35,10 @@ const Analytics = (() => {
     return (arr || []).filter(e => e.amount && e.category && e.timestamp);
   }
 
-  /* ── Apply filters client-side ── */
+  /* ── Apply chip/date filters client-side (used on initial load data only) ── */
   function applyFilters(expenses) {
     return expenses.filter(e => {
-      const { categories, sources, tags, dateFrom, dateTo, tagSearch } = filterState;
+      const { categories, sources, tags, dateFrom, dateTo } = filterState;
 
       if (categories.length && !categories.includes(e.category)) return false;
       if (sources.length   && !sources.includes(e.source))       return false;
@@ -55,15 +59,6 @@ const Analytics = (() => {
         const to = new Date(dateTo);
         to.setHours(23, 59, 59, 999);
         if (isNaN(d) || d > to) return false;
-      }
-
-      if (tagSearch) {
-        const q = tagSearch.toLowerCase();
-        const inTags     = (e.tags     || '').toLowerCase().includes(q);
-        const inCategory = (e.category || '').toLowerCase().includes(q);
-        const inSource   = (e.source   || '').toLowerCase().includes(q);
-        const inComments = (e.comments || '').toLowerCase().includes(q);
-        if (!inTags && !inCategory && !inSource && !inComments) return false;
       }
 
       return true;
@@ -146,6 +141,40 @@ const Analytics = (() => {
     `).join('');
   }
 
+  /* ── Server-side search ── */
+  async function performSearch() {
+    const searchBtn = document.getElementById('anaSearchBtn');
+    if (searchBtn) {
+      searchBtn.disabled = true;
+      searchBtn.textContent = 'Searching…';
+    }
+
+    try {
+      const params = {};
+
+      // Only send one category/source if a single chip is selected;
+      // multiple selections are filtered client-side from the results.
+      if (filterState.categories.length === 1) params.category = filterState.categories[0];
+      if (filterState.sources.length === 1)    params.source   = filterState.sources[0];
+      if (filterState.tags.length === 1)       params.tag      = filterState.tags[0];
+      if (filterState.tagSearch)               params.q        = filterState.tagSearch;
+      if (filterState.dateFrom)                params.from     = filterState.dateFrom;
+      if (filterState.dateTo)                  params.to       = filterState.dateTo;
+      params.limit = 50;
+
+      const results = await API.fetchSearch(params);
+      allExpenses = filterBlank(results || []);
+      renderResults();
+    } catch (e) {
+      showToast({ icon: '❌', title: 'Search Failed', message: e.message });
+    } finally {
+      if (searchBtn) {
+        searchBtn.disabled = false;
+        searchBtn.textContent = '🔎 Search';
+      }
+    }
+  }
+
   /* ── Load page ── */
   async function load() {
     const loadingEl = document.getElementById('anaLoadingState');
@@ -218,10 +247,22 @@ const Analytics = (() => {
       renderResults();
     });
 
+    // Search input: update filter state but do NOT auto-search on every keystroke.
+    // The user clicks the Search button to trigger the server-side search.
     document.getElementById('anaTagSearch')?.addEventListener('input', e => {
       filterState.tagSearch = e.target.value.trim();
-      renderResults();
     });
+
+    // Enter key in search input triggers search
+    document.getElementById('anaTagSearch')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        performSearch();
+      }
+    });
+
+    // Search button
+    document.getElementById('anaSearchBtn')?.addEventListener('click', () => performSearch());
 
     document.getElementById('anaResetBtn')?.addEventListener('click', () => {
       const range = getCurrentMonthRange();

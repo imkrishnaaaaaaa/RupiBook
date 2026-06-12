@@ -84,6 +84,24 @@ const API = (() => {
     },
 
     /**
+     * GET ?action=search&q=...&category=...&source=...&tag=...&from=...&to=...&limit=50
+     * Server-side filtered search. Returns array of matching expense objects (newest first).
+     */
+    fetchSearch(params = {}) {
+      const url = getUrl();
+      const qs = new URLSearchParams({ action: 'search' });
+      if (params.q)        qs.set('q', params.q);
+      if (params.category) qs.set('category', params.category);
+      if (params.source)   qs.set('source', params.source);
+      if (params.tag)      qs.set('tag', params.tag);
+      if (params.from)     qs.set('from', params.from);
+      if (params.to)       qs.set('to', params.to);
+      if (params.limit)    qs.set('limit', String(params.limit));
+      return fetch(`${url}?${qs.toString()}`, { method: 'GET', redirect: 'follow' })
+        .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); });
+    },
+
+    /**
      * POST expense data
      * @param {{ amount, category, source, paymentMode, tags, comments }} data
      */
