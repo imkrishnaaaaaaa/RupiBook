@@ -47,7 +47,7 @@ Most expense trackers want your data on their servers, behind a paywall, and loc
          │ POST JSON
          ▼
 ┌────────────────────────────────────────┐
-│    Google Apps Script (Serverless)      │
+│    Google Apps Script (Serverless)     │
 │  ┌──────────────────────────────────┐  │
 │  │  doPost()                        │  │
 │  │  • Writes expense row            │  │
