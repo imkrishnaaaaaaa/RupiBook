@@ -6,7 +6,7 @@ var CURRENCY = "₹";
 /*** App version — bump this on every deploy.
      The PWA compares this against its own RUPIBOOK_UI_VERSION (in js/version.js).
      If they differ, an "update required" banner is shown to the user. ***/
-var APPSCRIPT_VERSION = "1.1.1";
+var APPSCRIPT_VERSION = "1.1.2";
 
 /***
  * ───────── doPost: receives expense data or actions from the PWA / Shortcut ─────────
