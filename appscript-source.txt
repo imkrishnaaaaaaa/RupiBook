@@ -1,22 +1,29 @@
-/*** ───────── CONFIG (edit these two lines if you like) ───────── ***/
-var TIMEZONE = "Asia/Kolkata"; // your timezone
-var CURRENCY = "₹"; // your currency symbol
+/*** ───────── CONFIG ───────── ***/
+// Change these to match your locale
+var TIMEZONE = "Asia/Kolkata";
+var CURRENCY = "₹";
 
-/*** App version — bump this every time you deploy a new version of this script.
-     The RupiBook PWA fetches this via ?action=version and compares it against its
-     own RUPIBOOK_UI_VERSION; if they differ it shows an "update required" banner.
-     Keep this in sync with RUPIBOOK_UI_VERSION in js/version.js. ***/
+/*** App version — bump this on every deploy.
+     The PWA compares this against its own RUPIBOOK_UI_VERSION (in js/version.js).
+     If they differ, an "update required" banner is shown to the user. ***/
 var APPSCRIPT_VERSION = "1.1.1";
 
-/*** ───────── WEB APP: receives data from your iPhone ───────── ***/
+/***
+ * ───────── doPost: receives expense data or actions from the PWA / Shortcut ─────────
+ * 
+ * Expected JSON body for logging:
+ *   { amount, category, source, paymentMode, tags, comments }
+ *
+ * Special actions:
+ *   { action: "undo" }  →  removes the last logged expense
+ ***/
 function doPost(e) {
     var lock = LockService.getScriptLock();
-    lock.tryLock(10000); // avoid two requests clashing
+    lock.tryLock(10000);
     try {
         var ss = SpreadsheetApp.getActiveSpreadsheet();
         var p = JSON.parse(e.postData.contents);
 
-        // Special action: undo the last logged expense
         if(p.action === "undo") {
             return undoLast(ss);
         }
@@ -33,6 +40,7 @@ function doPost(e) {
         var tags = p.tags || "";
         var comments = p.comments || "";
 
+        // Expenses row: Timestamp | Amount | Category | Source | Payment Mode | Tags | Comments | Month
         sheet.appendRow([timestamp, amount, category, source, paymentMode, tags, comments, month]);
 
         var msg = checkBudgets(ss, month, category);
@@ -51,7 +59,19 @@ function doPost(e) {
     }
 }
 
-/*** Lets you test the deployment in a browser ***/
+/***
+ * ───────── doGet: REST-like API, routed by ?action= parameter ─────────
+ *
+ * Actions:
+ *   version   → { version }                         — for PWA version sync
+ *   config    → { categories, mapping, paymentModes } — dropdown data
+ *   dashboard → { month, totalSpent, ... }           — current month summary
+ *   recent    → [ last 20 expenses ]                 — for dashboard list
+ *   analytics → { breakdowns + recentExpenses }      — for analytics page
+ *   filters   → { categories, sources, tags }        — distinct filter values
+ *   search    → [ filtered expenses, max 50 ]        — server-side search
+ *   (none)    → health check
+ ***/
 function doGet(e) {
 
     var action = e.parameter.action || "";
@@ -82,6 +102,11 @@ function doGet(e) {
         return json(getFilterValues());
     }
 
+    if(action === "search") {
+        return json(searchExpenses(e.parameter));
+    }
+
+    // Default health check
     return json({
         status: "ok",
         message: "RupiBook API Running",
@@ -89,25 +114,31 @@ function doGet(e) {
     });
 }
 
-/*** ───────── BUDGET CHECK ───────── ***/
+/***
+ * ───────── BUDGET CHECK ─────────
+ * Called after every expense log. Compares this month's spending against:
+ *   - Per-category limit from the Budgets sheet
+ *   - Overall monthly limit from Settings!B1
+ * Returns a human-readable alert string (shown as a notification on the phone).
+ ***/
 function checkBudgets(ss, month, category) {
     var settings = ss.getSheetByName("Settings");
 
+    // Default 80% threshold if Settings sheet is missing
     var threshold = 0.8;
     var totalLimit = 0;
 
     if(settings) {
         totalLimit = Number(settings.getRange("B1").getValue()) || 0;
-
+        // Settings!B2 holds the alert threshold as a percentage (e.g. 75 = 75%)
         var t = Number(settings.getRange("B2").getValue());
-
         if(t > 0) {
             threshold = t / 100;
         }
     }
 
+    // Sum all expenses for this month
     var data = ss.getSheetByName("Expenses").getDataRange().getValues();
-
     var totalSpent = 0;
     var catSpent = 0;
 
@@ -116,7 +147,7 @@ function checkBudgets(ss, month, category) {
             continue;
         }
 
-        var rowMonth = data[i][7];
+        var rowMonth = data[i][7]; // Column H = Month
 
         if(rowMonth instanceof Date) {
             rowMonth = Utilities.formatDate(rowMonth, TIMEZONE, "yyyy-MM");
@@ -128,22 +159,20 @@ function checkBudgets(ss, month, category) {
             continue;
         }
 
-        var amt = Number(data[i][1]) || 0;
-
+        var amt = Number(data[i][1]) || 0; // Column B = Amount
         totalSpent += amt;
 
-        if(String(data[i][2] || "").trim() === category) {
+        if(String(data[i][2] || "").trim() === category) { // Column C = Category
             catSpent += amt;
         }
     }
 
+    // Look up this category's limit from the Budgets sheet
     var catLimit = 0;
-
     var budgets = ss.getSheetByName("Budgets");
 
     if(budgets) {
         var b = budgets.getDataRange().getValues();
-
         for(var j = 1; j < b.length; j++) {
             if(String(b[j][0] || "").trim() === String(category || "").trim()) {
                 catLimit = Number(b[j][1]) || 0;
@@ -152,6 +181,7 @@ function checkBudgets(ss, month, category) {
         }
     }
 
+    // Build alert messages
     var alerts = [];
 
     if(catLimit > 0 && catSpent >= threshold * catLimit) {
@@ -187,7 +217,14 @@ function undoLast(ss) {
     });
 }
 
-/*** ───────── AUTOPAY: auto-log items due today (daily trigger) ───────── ***/
+/***
+ * ───────── AUTOPAY ─────────
+ * Set up a daily time-driven trigger for this function:
+ *   Triggers → + Add Trigger → logAutopay → Time-driven → Day timer
+ *
+ * It checks every row in the Autopay sheet. If Active=true and
+ * Day of Month matches today, it appends a row to Expenses.
+ ***/
 function logAutopay() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var ap = ss.getSheetByName("Autopay");
@@ -210,7 +247,11 @@ function logAutopay() {
     }
 }
 
-/*** ───────── EMAIL DIGEST (daily/weekly trigger) ───────── ***/
+/***
+ * ───────── EMAIL DIGEST ─────────
+ * Set up a daily or weekly time-driven trigger for this function.
+ * Sends a spending summary email to the spreadsheet owner.
+ ***/
 function sendDailyDigest() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var month = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM");
@@ -242,11 +283,18 @@ function sendDailyDigest() {
     MailApp.sendEmail(Session.getEffectiveUser().getEmail(), "💰 Expense digest — " + month, body);
 }
 
-/*** ───────── ONE-TIME SETUP: builds all tabs ───────── ***/
+/***
+ * ───────── ONE-TIME SETUP ─────────
+ * Run this once after pasting the code. It creates all required sheets
+ * with headers, example data, and a formatted Dashboard.
+ *
+ * Safe to re-run: it only populates sheets that have no data (getLastRow() === 0).
+ * The Dashboard is always rebuilt from scratch on each run.
+ ***/
 function setupSheets() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // 1. Expenses Sheet
+    // ── 1. Expenses ──
     var exp = ss.getSheetByName("Expenses") || ss.insertSheet("Expenses");
     if(exp.getLastRow() === 0) {
         exp.appendRow(["Timestamp", "Amount", "Category", "Source", "Payment Mode", "Tags", "Comments", "Month"]);
@@ -254,7 +302,8 @@ function setupSheets() {
         exp.setFrozenRows(1);
     }
 
-    // 2. Budgets Sheet
+    // ── 2. Budgets ──
+    // Edit the amounts below to set your initial per-category monthly limits.
     var bud = ss.getSheetByName("Budgets") || ss.insertSheet("Budgets");
     if(bud.getLastRow() === 0) {
         bud.appendRow(["Category", "Monthly Limit"]);
@@ -271,7 +320,9 @@ function setupSheets() {
         bud.getRange("1:1").setFontWeight("bold").setBackground("#34A853").setFontColor("#ffffff");
     }
 
-    // 3. Settings Sheet
+    // ── 3. Settings ──
+    // B1 = Overall monthly spending limit
+    // B2 = Alert threshold percentage (e.g. 75 means warn at 75% of limit)
     var set = ss.getSheetByName("Settings") || ss.insertSheet("Settings");
     if(set.getLastRow() === 0) {
         set.getRange("A1").setValue("Monthly Total Limit");
@@ -281,7 +332,9 @@ function setupSheets() {
         set.getRange("A1:A2").setFontWeight("bold");
     }
 
-    // 4. Autopay Sheet
+    // ── 4. Autopay ──
+    // Add your recurring bills here. Set Active=true and the Day of Month.
+    // logAutopay() auto-logs these on the specified day (requires a daily trigger).
     var ap = ss.getSheetByName("Autopay") || ss.insertSheet("Autopay");
     if(ap.getLastRow() === 0) {
         ap.appendRow(["Name", "Amount", "Category", "Day of Month", "Active"]);
@@ -294,7 +347,9 @@ function setupSheets() {
         ap.getRange("1:1").setFontWeight("bold").setBackground("#FBBC04");
     }
 
-    // 5. Config Sheet
+    // ── 5. Config ──
+    // Each row maps a Category to a Source. The PWA reads this to populate dropdowns.
+    // Add/edit/remove rows here to customise your categories and sources.
     var config = ss.getSheetByName("Config") || ss.insertSheet("Config");
     if(config.getLastRow() === 0) {
         config.appendRow(["Category", "Source"]);
@@ -328,7 +383,8 @@ function setupSheets() {
         config.getRange("1:1").setFontWeight("bold").setBackground("#EA4335").setFontColor("#ffffff");
     }
 
-    // 6. PaymentModes Sheet
+    // ── 6. PaymentModes ──
+    // Add or remove payment methods here. The PWA reads Column A.
     var pm = ss.getSheetByName("PaymentModes") || ss.insertSheet("PaymentModes");
     if(pm.getLastRow() === 0) {
         pm.appendRow(["Payment Mode"]);
@@ -346,18 +402,31 @@ function setupSheets() {
         pm.getRange("1:1").setFontWeight("bold").setBackground("#9C27B0").setFontColor("#ffffff");
     }
 
-    // 7. Dashboard Sheet (Created and placed first)
-    var dash = ss.getSheetByName("Dashboard") || ss.insertSheet("Dashboard");
-    ss.setActiveSheet(dash);
-    ss.moveActiveSheet(1); // Moves Dashboard to the very first tab
-    dash.clear(); // Clears existing layout to build fresh
+    // ── 7. Dashboard (always rebuilt) ──
+    var dash = ss.getSheetByName("Dashboard");
 
-    // Title Header
+    if(!dash) {
+        dash = ss.insertSheet("Dashboard");
+    }
+
+    ss.setActiveSheet(dash);
+    ss.moveActiveSheet(1); // Dashboard tab always first
+
+    dash.clearContents();
+    dash.clearFormats();
+    dash.clearConditionalFormatRules();
+
+    var charts = dash.getCharts();
+    for(var i = 0; i < charts.length; i++) {
+        dash.removeChart(charts[i]);
+    }
+
+    // Title
     dash.getRange("A1").setValue("📊 EXPENSE DASHBOARD");
     dash.getRange("A1:K1").merge().setFontSize(16).setFontWeight("bold").setFontColor("#1F497D").setVerticalAlignment("middle");
     dash.setRowHeight(1, 40);
 
-    // Monthly KPI Cards (Summary Table)
+    // KPI Summary (A3:B7)
     dash.getRange("A3").setValue("This month");
     dash.getRange("B3").setFormula("=EOMONTH(TODAY(),-1)+1").setNumberFormat("mmmm yyyy");
 
@@ -373,11 +442,10 @@ function setupSheets() {
     dash.getRange("A7").setValue("% used");
     dash.getRange("B7").setFormula("=B4/B5").setNumberFormat("0.00%");
 
-    // Styling KPI Cards
     dash.getRange("A3:A7").setFontWeight("bold").setBackground("#F3F3F3");
     dash.getRange("A3:B7").setBorder(true, true, true, true, true, true, "#CCCCCC", SpreadsheetApp.BorderStyle.SOLID);
 
-    // Category Budget Table Headers
+    // Category Budget Table (A10:E18) — linked to Budgets sheet
     var tableHeaders = ["Category", "Limit", "Spent", "Remaining", "% Used"];
     dash.getRange("A10:E10").setValues([tableHeaders])
         .setFontWeight("bold")
@@ -385,9 +453,8 @@ function setupSheets() {
         .setFontColor("#ffffff")
         .setHorizontalAlignment("center");
 
-    // Fill Category Table rows (linked dynamically to the Budgets Sheet)
     for(var i = 11; i <= 18; i++) {
-        var budgetRow = i - 9; // Rows 2 to 9 on Budgets
+        var budgetRow = i - 9; // Maps to Budgets rows 2–9
         dash.getRange("A" + i).setFormula("=Budgets!A" + budgetRow);
         dash.getRange("B" + i).setFormula("=Budgets!B" + budgetRow).setNumberFormat("$#,##0.00");
         dash.getRange("C" + i).setFormula("=SUMIFS(Expenses!$B:$B, Expenses!$C:$C, $A" + i + ", Expenses!$H:$H, $B$3)").setNumberFormat("$#,##0.00");
@@ -396,77 +463,106 @@ function setupSheets() {
     }
     dash.getRange("A11:E18").setBorder(true, true, true, true, true, true, "#E0E0E0", SpreadsheetApp.BorderStyle.SOLID);
 
-    // Conditional Formatting for % Used (Green if safe, Red if above warning threshold in Settings!B2)
+    // Conditional formatting: green below threshold, red at or above
+    var threshold =
+        Number(ss.getSheetByName("Settings")
+            .getRange("B2")
+            .getValue()) || 75;
+
+    threshold = threshold / 100;
+
     var rangeE = dash.getRange("E11:E18");
-    var ruleGreen = SpreadsheetApp.newConditionalFormatRule()
-        .whenNumberLessThanFormula("=Settings!$B$2/100")
+
+    var ruleGreen =
+        SpreadsheetApp.newConditionalFormatRule()
+        .whenNumberLessThan(threshold)
         .setBackground("#D9EAD3")
         .setFontColor("#274E13")
         .setRanges([rangeE])
         .build();
-    var ruleRed = SpreadsheetApp.newConditionalFormatRule()
-        .whenNumberGreaterThanOrEqualToFormula("=Settings!$B$2/100")
+
+    var ruleRed =
+        SpreadsheetApp.newConditionalFormatRule()
+        .whenNumberGreaterThanOrEqualTo(threshold)
         .setBackground("#F4CCCC")
         .setFontColor("#660000")
         .setRanges([rangeE])
         .build();
-    dash.setConditionalFormatRules([ruleGreen, ruleRed]);
 
-    // Pivot Table 1: Category vs Spent (Sorted Alphabetically)
+    dash.setConditionalFormatRules([
+        ruleGreen,
+        ruleRed
+    ]);
+
+    // Pivot: Category vs Spent
     dash.getRange("G10").setFormula("=QUERY(A10:C18, \"select A, C where C > 0 order by A asc\", 1)");
     dash.getRange("G10:H10").setFontWeight("bold").setBackground("#34A853").setFontColor("#ffffff");
 
-    // Pivot Table 2: Spend By Month (Dynamically calculated from Expenses)
-    dash.getRange("J10").setFormula("=QUERY(Expenses!A:H, \"select H, sum(B) where H is not null group by H label H 'Month', sum(B) 'Spent'\", 1)");
-    dash.getRange("J10:K10").setFontWeight("bold").setBackground("#FBBC04").setFontColor("#ffffff");
+    // Pivot: Monthly Spending vs Budget
+    dash.getRange("J10").setValue("Month");
+    dash.getRange("K10").setValue("Spent");
+    dash.getRange("L10").setValue("Budget");
 
-    // Format Query output rows
+    dash.getRange("J11").setFormula(
+        "=QUERY(Expenses!A:H,\"select H,sum(B) where H is not null group by H order by H label H '', sum(B) ''\",0)"
+    );
+
+    dash.getRange("L11").setFormula(
+        "=ARRAYFORMULA(IF(J11:J=\"\",\"\",Settings!B1))"
+    );
+
+    dash.getRange("J10:L10").setFontWeight("bold").setBackground("#FBBC04").setFontColor("#ffffff");
+
     dash.getRange("H11:H25").setNumberFormat("$#,##0.00");
     dash.getRange("J11:J25").setNumberFormat("yyyy-mm");
     dash.getRange("K11:K25").setNumberFormat("$#,##0.00");
 
-    // Remove existing charts to avoid duplicates when running multiple times
+    // Remove existing charts before inserting new ones
     var existingCharts = dash.getCharts();
     for(var k = 0; k < existingCharts.length; k++) {
         dash.removeChart(existingCharts[k]);
     }
 
-    // Insert 3D Pie Chart (Expenses by Category)
+    // 3D Pie Chart — Expenses by Category
     try {
         var pieChart = dash.newChart()
-            .setChartType(SpreadsheetApp.ChartType.PIE)
+            .setChartType(Charts.ChartType.PIE)
             .addRange(dash.getRange("G10:H18"))
-            .setPosition(20, 1, 0, 0) // Places chart starting at cell A20
-            .setOption('title', 'Expenses by Category')
-            .setOption('is3D', true)
+            .setPosition(20, 1, 0, 0)
+            .setOption("title", "Expenses by Category")
+            .setOption("is3D", true)
             .build();
+
         dash.insertChart(pieChart);
+
     } catch (err) {
         Logger.log("Pie chart generation failed: " + err.message);
     }
 
-    // Insert Column Chart (Spend by Month)
+    // Combo Chart — Monthly Spending vs Budget line
     try {
-        var columnChart = dash.newChart()
-            .setChartType(SpreadsheetApp.ChartType.COLUMN)
-            .addRange(dash.getRange("J10:K18"))
-            .setPosition(20, 6, 0, 0) // Places chart starting at cell F20
-            .setOption('title', 'Spend by Month')
-            .setOption('legend', {
-                position: 'none'
+        var comboChart = dash.newChart()
+            .setChartType(Charts.ChartType.COMBO)
+            .addRange(dash.getRange("J10:L50"))
+            .setPosition(20, 10, 0, 0)
+            .setOption("title", "Monthly Spending vs Budget")
+            .setOption("seriesType", "bars")
+            .setOption("series", {
+                1: {
+                    type: "line"
+                }
             })
             .build();
-        dash.insertChart(columnChart);
+
+        dash.insertChart(comboChart);
+
     } catch (err) {
         Logger.log("Column chart generation failed: " + err.message);
     }
 
-    try {
-        SpreadsheetApp.getUi().alert("✅ All sheets and Dashboard are ready!");
-    } catch (e) {}
 }
 
-/*** Adds a menu inside the spreadsheet for manual actions ***/
+/*** Adds a custom menu inside the spreadsheet for manual actions ***/
 function onOpen() {
     SpreadsheetApp.getUi()
         .createMenu("💰 RupiBook")
@@ -476,7 +572,9 @@ function onOpen() {
         .addToUi();
 }
 
-/*** ───────── helpers ───────── ***/
+/*** ───────── Helpers ───────── ***/
+
+// Returns a JSON ContentService response
 function json(obj) {
     return ContentService.createTextOutput(JSON.stringify(obj))
         .setMimeType(ContentService.MimeType.JSON);
@@ -493,7 +591,9 @@ function fmt(n) {
 }
 
 
-//Additional Methods
+/*** ───────── Data API Functions ───────── ***/
+
+// Returns category→source mapping and payment modes for the PWA dropdowns
 function getConfigData() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Config");
@@ -536,7 +636,7 @@ function getConfigData() {
     };
 }
 
-
+// Returns current month's summary for the dashboard
 function getDashboardData() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -586,13 +686,12 @@ function getDashboardData() {
         monthlyLimit: limit,
         remaining: limit - total,
         budgetPercent: limit > 0 ?
-            Math.round((total / limit) * 100) :
-            0,
+            Math.round((total / limit) * 100) : 0,
         categoryTotals: categoryTotals
     };
 }
 
-
+// Returns the last 20 expenses (newest first) for the dashboard recent list
 function getRecentExpenses() {
 
     var sheet =
@@ -621,6 +720,7 @@ function getRecentExpenses() {
     return result;
 }
 
+// Returns breakdowns and last 20 expenses for the analytics page
 function getAnalyticsData() {
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -683,6 +783,7 @@ function getAnalyticsData() {
     };
 }
 
+// Returns distinct categories, sources, and tags for filter chips
 function getFilterValues() {
 
     var sheet =
@@ -724,4 +825,83 @@ function getFilterValues() {
         sources: Object.keys(sources).sort(),
         tags: Object.keys(tags).sort()
     };
+}
+
+/***
+ * ───────── SEARCH ─────────
+ * Server-side filtered search. Accepts query parameters:
+ *   q         — free-text search (matches category, source, tags, comments)
+ *   category  — exact category match
+ *   source    — exact source match
+ *   tag       — matches if the tag appears in the tags field
+ *   from      — date string (yyyy-MM-dd), inclusive lower bound
+ *   to        — date string (yyyy-MM-dd), inclusive upper bound
+ *   limit     — max results to return (default 50)
+ *
+ * Returns the most recent matching expenses (newest first).
+ ***/
+function searchExpenses(params) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Expenses");
+    var rows = sheet.getDataRange().getValues();
+
+    var q = String(params.q || "").trim().toLowerCase();
+    var category = String(params.category || "").trim();
+    var source = String(params.source || "").trim();
+    var tag = String(params.tag || "").trim().toLowerCase();
+    var fromStr = String(params.from || "").trim();
+    var toStr = String(params.to || "").trim();
+    var limit = Number(params.limit) || 50;
+
+    var fromDate = fromStr ? new Date(fromStr) : null;
+    var toDate = toStr ? new Date(toStr + "T23:59:59") : null;
+
+    var results = [];
+
+    // Iterate newest-first
+    for(var i = rows.length - 1; i >= 1 && results.length < limit; i--) {
+        var rowTs = rows[i][0];
+        var rowAmount = Number(rows[i][1]) || 0;
+        var rowCategory = String(rows[i][2] || "").trim();
+        var rowSource = String(rows[i][3] || "").trim();
+        var rowTags = String(rows[i][5] || "").trim();
+        var rowComments = String(rows[i][6] || "").trim();
+
+        // Skip blank rows
+        if(!rowTs || !rowAmount) continue;
+
+        // Category filter
+        if(category && rowCategory !== category) continue;
+
+        // Source filter
+        if(source && rowSource !== source) continue;
+
+        // Tag filter
+        if(tag) {
+            var tagsLower = rowTags.toLowerCase();
+            if(tagsLower.indexOf(tag) === -1) continue;
+        }
+
+        // Date range filter
+        var rowDate = (rowTs instanceof Date) ? rowTs : new Date(rowTs);
+        if(fromDate && rowDate < fromDate) continue;
+        if(toDate && rowDate > toDate) continue;
+
+        // Free-text search (matches category, source, tags, comments)
+        if(q) {
+            var haystack = (rowCategory + " " + rowSource + " " + rowTags + " " + rowComments).toLowerCase();
+            if(haystack.indexOf(q) === -1) continue;
+        }
+
+        results.push({
+            timestamp: rows[i][0],
+            amount: rows[i][1],
+            category: rowCategory,
+            source: rowSource,
+            paymentMode: String(rows[i][4] || "").trim(),
+            tags: rowTags,
+            comments: rowComments
+        });
+    }
+
+    return results;
 }
