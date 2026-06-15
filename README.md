@@ -96,13 +96,16 @@ Most expense trackers want your data on their servers, behind a paywall, and loc
 - Categories and sources auto-populated from your Google Sheet (`Config` tab)
 - Tags auto-generated from your selections; add custom tags manually
 - Smart comments-to-tags extraction
+- **₹0 expenses supported** — track free items (e.g., 100% off coupons) to analyse spending habits
 
 ### Dashboard
 - Real-time **monthly spending summary** with budget progress bar
 - **Category pie chart** — see where your money goes at a glance
-- **Monthly trend line chart** — track spending patterns over time
+- **Budget overshoot chart** — instantly see which categories have exceeded their budget and by how much
+- **Monthly trend combo chart** — spending bars with a budget line overlay to track patterns over time
 - **Top sources bar chart** — identify your most-used merchants
 - **Recent expenses** list with full detail
+- **Sheets Dashboard** — auto-generated charts in your Google Sheet including a current-month budget vs actual comparison
 
 ### Analytics
 - **Filterable expense history** — filter by category, source, tags, date range, or free-text search
@@ -120,10 +123,32 @@ Most expense trackers want your data on their servers, behind a paywall, and loc
 - Checkbox toggle to pause/resume
 - Daily trigger auto-logs due items as normal expenses — they flow into budgets and charts
 
-### Email Digest
-- Daily or weekly spending summary emailed to your Google account
-- Total spent, percentage of budget, per-category breakdown
-- Configured via an Apps Script time-driven trigger
+### Email Notifications
+
+Three types of automated emails, each with distinct subject patterns for easy Gmail filtering:
+
+| Email Type | Subject Pattern | When Sent |
+|------------|----------------|----------|
+| **Monthly Summary** | `[RupiBook] 📊 Monthly Summary — Jun 2026` | 1st of each month (previous month recap) |
+| **Category Budget Alert** | `[RupiBook] 🚨 Budget Exceeded — Food — Jun 2026` | When a category exceeds its budget |
+| **Overall Budget Alert** | `[RupiBook] 🔴 Overall Budget Exceeded — Jun 2026` | When total monthly spend exceeds the limit |
+
+**Monthly Summary** includes:
+- Total spent vs budget with percentage
+- Full category breakdown with budget comparison
+- Top 5 spending sources with transaction counts
+- Payment mode usage breakdown
+- Budget analysis (categories within/exceeded budget)
+- Month-over-month spending comparison
+
+**Budget Alerts** include:
+- Category-specific: top sources, highest single expense, recent transactions in that category
+- Overall: all categories listed, categories over budget highlighted, remaining days in month
+- Duplicate prevention: alerts are sent once per event, then re-sent every 10 days with updated status
+
+**Setup**: Create a daily time-driven trigger for `dailyTrigger` in Apps Script. Budget alerts are also triggered automatically when logging expenses.
+
+**Gmail Filtering**: All subjects start with `[RupiBook]` — create a Gmail filter for `subject:[RupiBook]` to label/organize these emails. Use the emoji prefix (`📊`, `🚨`, `🔴`) to further differentiate.
 
 ### Multi-Profile Support
 - Manage separate expense sheets for different contexts (Personal, Family, Friend)
@@ -208,9 +233,9 @@ The Apps Script Web App exposes these endpoints. All requests go to your deploye
 | *(none)* | `{ status, message, version }` | Health check — confirms the API is running |
 | `?action=version` | `{ version }` | Returns deployed AppScript version for sync checks |
 | `?action=config` | `{ categories, mapping, paymentModes }` | Category → Source mapping and payment modes |
-| `?action=dashboard` | `{ month, totalSpent, monthlyLimit, remaining, budgetPercent, categoryTotals }` | Current month summary for dashboard |
+| `?action=dashboard` | `{ month, totalSpent, monthlyLimit, remaining, budgetPercent, categoryTotals, categoryBudgets }` | Current month summary + per-category budget limits |
 | `?action=recent` | `[{ timestamp, amount, category, source, paymentMode, tags, comments }]` | Last 20 expenses |
-| `?action=analytics` | `{ categoryBreakdown, sourceBreakdown, monthlyTrend, recentExpenses }` | Full analytics data |
+| `?action=analytics` | `{ categoryBreakdown, sourceBreakdown, monthlyTrend, recentExpenses, monthlyBudget }` | Full analytics data + monthly budget |
 | `?action=filters` | `{ categories, sources, tags }` | Distinct filter values from expense history |
 
 ### POST Endpoints
@@ -329,7 +354,9 @@ When a new RupiBook version requires a backend update, the app shows an **"AppSc
 | Wrong timestamp on entries | Update `TIMEZONE` at the top of the Apps Script (`Asia/Kolkata` by default), then re-deploy. |
 | Shortcut runs but no row appears | The URL in the Shortcut is wrong or outdated. Re-copy from **Deploy → Manage deployments**. After editing code, always deploy as a **New version**. |
 | Back Tap not triggering | Requires iPhone 8+ / iOS 14+. Thick cases can block it — try Triple Tap or a thinner case. |
-| Autopay / digest didn't run | Open Apps Script → ⏰ Triggers and confirm the trigger exists. Check **Executions** for errors. |
+| Autopay / emails didn't run | Open Apps Script → ⏰ Triggers and confirm the trigger for `dailyTrigger` exists. Check **Executions** for errors. |
+| Email shows wrong data | Ensure the `Month` column (H) in the Expenses sheet contains `yyyy-MM` formatted text, not dates. Re-run `setupSheets()` if needed. |
+| Duplicate budget alert emails | Alerts use PropertiesService for dedup. To reset, go to Apps Script → Project Settings → Script Properties and delete keys starting with `alert_`. |
 
 ---
 

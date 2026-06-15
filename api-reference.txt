@@ -57,7 +57,8 @@ Response:
     "monthlyLimit":  25000,
     "remaining":     12550,
     "budgetPercent": 50,
-    "categoryTotals": { "Food": 4200, "Bills": 8250 }
+    "categoryTotals": { "Food": 4200, "Bills": 8250 },
+    "categoryBudgets": { "Food": 2000, "Bills": 4000, "Transport": 2000 }
   }
 
 
@@ -90,7 +91,8 @@ Response:
     "categoryBreakdown": { "Food": 4200, "Bills": 8250 },
     "sourceBreakdown":   { "Cafe": 1200, "Electricity": 5000 },
     "monthlyTrend":      { "2026-05": 18000, "2026-06": 12450 },
-    "recentExpenses":    [ /* same shape as ?action=recent */ ]
+    "recentExpenses":    [ /* same shape as ?action=recent */ ],
+    "monthlyBudget":     25000
   }
 
 

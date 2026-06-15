@@ -467,8 +467,8 @@ const Home = {
   async saveExpense() {
     const amountVal = document.getElementById('amount')?.value;
     const amount    = parseFloat(amountVal);
-    if (!amount || amount <= 0) {
-      showToast({ icon: '⚠️', title: 'Validation', message: 'Please enter a valid amount.' });
+    if (isNaN(amount) || amount < 0) {
+      showToast({ icon: '⚠️', title: 'Validation', message: 'Please enter a valid amount (0 or more).' });
       document.getElementById('amount')?.focus();
       return;
     }

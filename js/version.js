@@ -13,7 +13,7 @@
  */
 
 /* ─── Version constant (bump on every release, keep in sync with appscript-source.txt) ─── */
-const RUPIBOOK_UI_VERSION = "1.1.2";
+const RUPIBOOK_UI_VERSION = "1.2.3";
 
 /* ─── Tunables ─── */
 const VERSION_CACHE_KEY = "rb_versionCache";        // { version, ts }

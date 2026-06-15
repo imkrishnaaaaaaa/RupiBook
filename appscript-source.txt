@@ -6,7 +6,7 @@ var CURRENCY = "₹";
 /*** App version — bump this on every deploy.
      The PWA compares this against its own RUPIBOOK_UI_VERSION (in js/version.js).
      If they differ, an "update required" banner is shown to the user. ***/
-var APPSCRIPT_VERSION = "1.1.2";
+var APPSCRIPT_VERSION = "1.2.3";
 
 /***
  * ───────── doPost: receives expense data or actions from the PWA / Shortcut ─────────
@@ -120,6 +120,7 @@ function doGet(e) {
  *   - Per-category limit from the Budgets sheet
  *   - Overall monthly limit from Settings!B1
  * Returns a human-readable alert string (shown as a notification on the phone).
+ * Also triggers email alerts when budgets are exceeded (with duplicate prevention).
  ***/
 function checkBudgets(ss, month, category) {
     var settings = ss.getSheetByName("Settings");
@@ -192,11 +193,65 @@ function checkBudgets(ss, month, category) {
         alerts.push(`🚨 Overall: ${CURRENCY}${fmt(totalSpent)} of ${CURRENCY}${fmt(totalLimit)} (${Math.round((totalSpent / totalLimit) * 100)}%). ${CURRENCY}${fmt(totalLimit - totalSpent)} left.`);
     }
 
+    // ── Email alerts when budgets EXCEED 100% ──
+    // Category budget exceeded
+    if(catLimit > 0 && catSpent > catLimit) {
+        trySendCategoryAlert_(ss, month, category);
+    }
+    // Overall budget exceeded
+    if(totalLimit > 0 && totalSpent > totalLimit) {
+        trySendOverallAlert_(ss, month);
+    }
+
     if(alerts.length === 0) {
         return `✅ Logged · ${category}. Month so far: ${CURRENCY}${fmt(totalSpent)}${totalLimit > 0 ? ` / ${CURRENCY}${fmt(totalLimit)}` : ""}.`;
     }
 
     return alerts.join("\n");
+}
+
+/***
+ * ───────── Alert deduplication helpers ─────────
+ * Uses PropertiesService to track which alerts have been sent.
+ * Category alerts: sent once on exceed, then re-sent every 10 days with current status.
+ * Overall alerts: sent once on exceed, then re-sent every 10 days.
+ ***/
+function trySendCategoryAlert_(ss, month, category) {
+    var props = PropertiesService.getScriptProperties();
+    var key = "alert_cat_" + category + "_" + month;
+    var last = props.getProperty(key);
+    var now = new Date().getTime();
+
+    if(last) {
+        var daysSince = (now - Number(last)) / (1000 * 60 * 60 * 24);
+        if(daysSince < 10) return; // Already sent within last 10 days
+    }
+
+    try {
+        sendCategoryBudgetAlert(ss, month, category);
+        props.setProperty(key, String(now));
+    } catch(e) {
+        Logger.log("Category alert email failed: " + e);
+    }
+}
+
+function trySendOverallAlert_(ss, month) {
+    var props = PropertiesService.getScriptProperties();
+    var key = "alert_overall_" + month;
+    var last = props.getProperty(key);
+    var now = new Date().getTime();
+
+    if(last) {
+        var daysSince = (now - Number(last)) / (1000 * 60 * 60 * 24);
+        if(daysSince < 10) return;
+    }
+
+    try {
+        sendOverallBudgetAlert(ss, month);
+        props.setProperty(key, String(now));
+    } catch(e) {
+        Logger.log("Overall alert email failed: " + e);
+    }
 }
 
 /*** ───────── UNDO LAST ENTRY ───────── ***/
@@ -248,39 +303,391 @@ function logAutopay() {
 }
 
 /***
- * ───────── EMAIL DIGEST ─────────
- * Set up a daily or weekly time-driven trigger for this function.
- * Sends a spending summary email to the spreadsheet owner.
+ * ───────── EMAIL SYSTEM ─────────
+ *
+ * Three types of emails, each with distinct subject patterns for Gmail filtering:
+ *   1. [RupiBook] 📊 Monthly Summary — Jun 2026       → 1st of each month (prev month recap)
+ *   2. [RupiBook] 🚨 Budget Exceeded — Food — Jun 2026 → when a category exceeds its budget
+ *   3. [RupiBook] 🔴 Overall Budget Exceeded — Jun 2026 → when total exceeds monthly limit
+ *
+ * Trigger setup: create a DAILY time-driven trigger for `dailyTrigger`.
+ * Budget alerts (2 & 3) are also fired from checkBudgets() on each expense,
+ * with dedup via PropertiesService (re-sent every 10 days max).
  ***/
-function sendDailyDigest() {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var month = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM");
-    var data = ss.getSheetByName("Expenses").getDataRange().getValues();
-    var total = 0,
-        byCat = {};
-    for(var i = 1; i < data.length; i++) {
-        if(data[i][7] === month) {
-            var amt = Number(data[i][1]) || 0;
-            total += amt;
-            var c = data[i][2] || "Others";
-            byCat[c] = (byCat[c] || 0) + amt;
+
+/*** ── Daily trigger orchestrator ──
+ *  Fires monthly summary on the 1st of each month (for the previous month).
+ *  Kept as the single function to attach a daily trigger to.
+ ***/
+function dailyTrigger() {
+    var today = new Date();
+    var dayOfMonth = Number(Utilities.formatDate(today, TIMEZONE, "d"));
+
+    // On the 1st, send last month's summary
+    if(dayOfMonth === 1) {
+        var lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        var month = Utilities.formatDate(lastMonth, TIMEZONE, "yyyy-MM");
+        var ss = SpreadsheetApp.getActiveSpreadsheet();
+        try {
+            sendMonthlySummary(ss, month);
+        } catch(e) {
+            Logger.log("Monthly summary email failed: " + e);
         }
     }
-    var set = ss.getSheetByName("Settings");
-    var totalLimit = set ? (Number(set.getRange("B1").getValue()) || 0) : 0;
+}
 
-    var body = "Spending summary for " + month + "\n\n";
-    body += "Total: " + CURRENCY + fmt(total) +
-        (totalLimit ? " / " + CURRENCY + fmt(totalLimit) + " (" + Math.round(total / totalLimit * 100) + "%)" : "") + "\n\n";
-    body += "By category:\n";
-    Object.keys(byCat).sort(function(a, b) {
-            return byCat[b] - byCat[a];
-        })
-        .forEach(function(c) {
-            body += "• " + c + ": " + CURRENCY + fmt(byCat[c]) + "\n";
+/*** Backward compat: old trigger name still works ***/
+function sendDailyDigest() { dailyTrigger(); }
+
+/***
+ * ── Helper: get month expenses with full details ──
+ * Returns { total, byCat, bySource, byPayment, expenses[], catLimits }
+ ***/
+function getMonthDetails_(ss, month) {
+    var data = ss.getSheetByName("Expenses").getDataRange().getValues();
+    var total = 0;
+    var byCat = {};      // category → amount
+    var bySource = {};   // source → { amount, count }
+    var byPayment = {};  // paymentMode → count
+    var expenses = [];   // full expense objects
+    var txCount = 0;
+
+    for(var i = 1; i < data.length; i++) {
+        if(!data[i][0] || data[i][1] === "") continue;
+
+        var rowMonth = data[i][7];
+        if(rowMonth instanceof Date) {
+            rowMonth = Utilities.formatDate(rowMonth, TIMEZONE, "yyyy-MM");
+        }
+        rowMonth = String(rowMonth || "").trim();
+        if(rowMonth !== month) continue;
+
+        var amt = Number(data[i][1]) || 0;
+        var cat = String(data[i][2] || "Others").trim();
+        var src = String(data[i][3] || "").trim();
+        var pm = String(data[i][4] || "").trim();
+
+        total += amt;
+        txCount++;
+        byCat[cat] = (byCat[cat] || 0) + amt;
+
+        if(src) {
+            if(!bySource[src]) bySource[src] = { amount: 0, count: 0 };
+            bySource[src].amount += amt;
+            bySource[src].count++;
+        }
+
+        if(pm) {
+            byPayment[pm] = (byPayment[pm] || 0) + 1;
+        }
+
+        expenses.push({
+            timestamp: data[i][0],
+            amount: amt,
+            category: cat,
+            source: src,
+            paymentMode: pm,
+            tags: String(data[i][5] || "").trim(),
+            comments: String(data[i][6] || "").trim()
         });
+    }
 
-    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), "💰 Expense digest — " + month, body);
+    // Get category budgets
+    var catLimits = {};
+    var budgets = ss.getSheetByName("Budgets");
+    if(budgets) {
+        var b = budgets.getDataRange().getValues();
+        for(var j = 1; j < b.length; j++) {
+            var cn = String(b[j][0] || "").trim();
+            if(cn) catLimits[cn] = Number(b[j][1]) || 0;
+        }
+    }
+
+    return {
+        total: total,
+        txCount: txCount,
+        byCat: byCat,
+        bySource: bySource,
+        byPayment: byPayment,
+        expenses: expenses,
+        catLimits: catLimits
+    };
+}
+
+/*** ── Helper: format month label (yyyy-MM → "Jun 2026") ── ***/
+function fmtMonthLabel_(month) {
+    var parts = month.split("-");
+    var names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return names[Number(parts[1]) - 1] + " " + parts[0];
+}
+
+/*** ── Helper: category icon ── ***/
+function catIcon_(cat) {
+    var icons = {
+        Food: "🍔", Transport: "🚗", Shopping: "🛍️", Bills: "💡",
+        Health: "💊", Entertainment: "🎬", Groceries: "🛒", Donate: "🤲", Others: "💰"
+    };
+    return icons[cat] || "💰";
+}
+
+/***
+ * ═══════════════════════════════════════════
+ *  1. MONTHLY SUMMARY
+ *  Subject: [RupiBook] 📊 Monthly Summary — Jun 2026
+ * ═══════════════════════════════════════════
+ ***/
+function sendMonthlySummary(ss, month) {
+    var d = getMonthDetails_(ss, month);
+    var settings = ss.getSheetByName("Settings");
+    var totalLimit = settings ? (Number(settings.getRange("B1").getValue()) || 0) : 0;
+
+    var label = fmtMonthLabel_(month);
+    var pct = totalLimit > 0 ? Math.round(d.total / totalLimit * 100) : 0;
+
+    var body = "";
+    body += "📊 RupiBook Monthly Summary — " + label + "\n";
+    body += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+
+    // Overall
+    body += "💰 Total Spent: " + CURRENCY + fmt(d.total);
+    if(totalLimit > 0) {
+        body += " / " + CURRENCY + fmt(totalLimit) + " (" + pct + "%)";
+    }
+    body += "\n";
+    if(totalLimit > 0) {
+        var remaining = totalLimit - d.total;
+        body += "📊 " + (remaining >= 0 ? "Remaining: " + CURRENCY + fmt(remaining) : "Over budget by: " + CURRENCY + fmt(Math.abs(remaining))) + "\n";
+    }
+    body += "🔢 Total Transactions: " + d.txCount + "\n\n";
+
+    // Category breakdown
+    body += "── Category Breakdown ──\n";
+    var cats = Object.keys(d.byCat).sort(function(a, b) { return d.byCat[b] - d.byCat[a]; });
+    var overBudgetCats = [];
+    var withinBudgetCount = 0;
+
+    cats.forEach(function(c) {
+        var spent = d.byCat[c];
+        var limit = d.catLimits[c] || 0;
+        var line = "  " + catIcon_(c) + " " + c + ": " + CURRENCY + fmt(spent);
+        if(limit > 0) {
+            var catPct = Math.round(spent / limit * 100);
+            line += " / " + CURRENCY + fmt(limit) + " (" + catPct + "%)";
+            if(spent > limit) {
+                line += " ⚠️ OVER by " + CURRENCY + fmt(spent - limit);
+                overBudgetCats.push({ name: c, over: spent - limit });
+            } else {
+                withinBudgetCount++;
+            }
+        }
+        body += line + "\n";
+    });
+    body += "\n";
+
+    // Top 5 sources
+    var srcArr = Object.keys(d.bySource).map(function(s) {
+        return { name: s, amount: d.bySource[s].amount, count: d.bySource[s].count };
+    }).sort(function(a, b) { return b.amount - a.amount; }).slice(0, 5);
+
+    if(srcArr.length > 0) {
+        body += "── Top 5 Spending Sources ──\n";
+        srcArr.forEach(function(s, i) {
+            body += "  " + (i + 1) + ". " + s.name + "  " + CURRENCY + fmt(s.amount) + " (" + s.count + " txn)\n";
+        });
+        body += "\n";
+    }
+
+    // Most used payment mode
+    var pmArr = Object.keys(d.byPayment).map(function(p) {
+        return { name: p, count: d.byPayment[p] };
+    }).sort(function(a, b) { return b.count - a.count; });
+
+    if(pmArr.length > 0) {
+        body += "── Payment Modes ──\n";
+        pmArr.forEach(function(p) {
+            body += "  💳 " + p.name + ": " + p.count + " transactions\n";
+        });
+        body += "\n";
+    }
+
+    // Budget analysis
+    body += "── Budget Analysis ──\n";
+    body += "  ✅ Categories within budget: " + withinBudgetCount + "\n";
+    if(overBudgetCats.length > 0) {
+        body += "  ⚠️ Categories exceeded: " + overBudgetCats.length + " (";
+        body += overBudgetCats.map(function(c) { return c.name + " +" + CURRENCY + fmt(c.over); }).join(", ");
+        body += ")\n";
+    }
+    if(cats.length > 0) {
+        body += "  📈 Highest category: " + cats[0] + " (" + CURRENCY + fmt(d.byCat[cats[0]]) + ")\n";
+        body += "  📉 Lowest category: " + cats[cats.length - 1] + " (" + CURRENCY + fmt(d.byCat[cats[cats.length - 1]]) + ")\n";
+    }
+    body += "\n";
+
+    // Monthly comparison — compare with previous month
+    var prevParts = month.split("-");
+    var prevDate = new Date(Number(prevParts[0]), Number(prevParts[1]) - 2, 1);
+    var prevMonth = Utilities.formatDate(prevDate, TIMEZONE, "yyyy-MM");
+    var prevData = getMonthDetails_(ss, prevMonth);
+
+    if(prevData.total > 0) {
+        var change = d.total - prevData.total;
+        var changePct = Math.round(Math.abs(change) / prevData.total * 100);
+        body += "── Monthly Comparison ──\n";
+        body += "  " + fmtMonthLabel_(prevMonth) + ": " + CURRENCY + fmt(prevData.total);
+        body += " → " + fmtMonthLabel_(month) + ": " + CURRENCY + fmt(d.total);
+        body += " (" + (change >= 0 ? "+" : "-") + changePct + "%)\n";
+    }
+
+    var subject = "[RupiBook] 📊 Monthly Summary — " + label;
+    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), subject, body);
+}
+
+/***
+ * ═══════════════════════════════════════════
+ *  2. CATEGORY BUDGET ALERT
+ *  Subject: [RupiBook] 🚨 Budget Exceeded — Food — Jun 2026
+ * ═══════════════════════════════════════════
+ ***/
+function sendCategoryBudgetAlert(ss, month, category) {
+    var d = getMonthDetails_(ss, month);
+    var label = fmtMonthLabel_(month);
+    var catSpent = d.byCat[category] || 0;
+    var catLimit = d.catLimits[category] || 0;
+
+    if(catLimit <= 0) return; // No limit set for this category
+
+    var pct = Math.round(catSpent / catLimit * 100);
+    var over = catSpent - catLimit;
+
+    var body = "";
+    body += "🚨 Budget Exceeded: " + category + " — " + label + "\n";
+    body += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+    body += catIcon_(category) + " " + category + ": " + CURRENCY + fmt(catSpent) + " / " + CURRENCY + fmt(catLimit) + " (" + pct + "%)\n";
+    body += "   Exceeded by: " + CURRENCY + fmt(over) + "\n\n";
+
+    // Top sources in this category
+    var catExpenses = d.expenses.filter(function(e) { return e.category === category; });
+    var catSources = {};
+    var highest = null;
+
+    catExpenses.forEach(function(e) {
+        if(e.source) {
+            if(!catSources[e.source]) catSources[e.source] = { amount: 0, count: 0 };
+            catSources[e.source].amount += e.amount;
+            catSources[e.source].count++;
+        }
+        if(!highest || e.amount > highest.amount) {
+            highest = e;
+        }
+    });
+
+    var srcArr = Object.keys(catSources).map(function(s) {
+        return { name: s, amount: catSources[s].amount, count: catSources[s].count };
+    }).sort(function(a, b) { return b.amount - a.amount; });
+
+    if(srcArr.length > 0) {
+        body += "── Top Sources in " + category + " ──\n";
+        srcArr.forEach(function(s, i) {
+            body += "  " + (i + 1) + ". " + s.name + "  " + CURRENCY + fmt(s.amount) + " (" + s.count + " txn)\n";
+        });
+        body += "\n";
+    }
+
+    // Highest single expense
+    if(highest) {
+        var hDate = highest.timestamp instanceof Date
+            ? Utilities.formatDate(highest.timestamp, TIMEZONE, "MMM dd")
+            : String(highest.timestamp).substring(0, 10);
+        body += "── Highest Single Expense ──\n";
+        body += "  " + CURRENCY + fmt(highest.amount) + " — " + (highest.source || category) + " — " + hDate + "\n\n";
+    }
+
+    // Recent expenses in this category (last 10)
+    var recent = catExpenses.sort(function(a, b) {
+        return new Date(b.timestamp) - new Date(a.timestamp);
+    }).slice(0, 10);
+
+    if(recent.length > 0) {
+        body += "── Recent " + category + " Expenses ──\n";
+        recent.forEach(function(e) {
+            var eDate = e.timestamp instanceof Date
+                ? Utilities.formatDate(e.timestamp, TIMEZONE, "MMM dd")
+                : String(e.timestamp).substring(0, 10);
+            body += "  " + eDate + "  " + CURRENCY + fmt(e.amount) + "  " + (e.source || "—") + "\n";
+        });
+    }
+
+    var subject = "[RupiBook] 🚨 Budget Exceeded — " + category + " — " + label;
+    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), subject, body);
+}
+
+/***
+ * ═══════════════════════════════════════════
+ *  3. OVERALL BUDGET ALERT
+ *  Subject: [RupiBook] 🔴 Overall Budget Exceeded — Jun 2026
+ * ═══════════════════════════════════════════
+ ***/
+function sendOverallBudgetAlert(ss, month) {
+    var d = getMonthDetails_(ss, month);
+    var settings = ss.getSheetByName("Settings");
+    var totalLimit = settings ? (Number(settings.getRange("B1").getValue()) || 0) : 0;
+
+    if(totalLimit <= 0) return;
+
+    var label = fmtMonthLabel_(month);
+    var pct = Math.round(d.total / totalLimit * 100);
+    var over = d.total - totalLimit;
+
+    var body = "";
+    body += "🔴 Overall Budget Exceeded — " + label + "\n";
+    body += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+    body += "💰 Total: " + CURRENCY + fmt(d.total) + " / " + CURRENCY + fmt(totalLimit) + " (" + pct + "%)\n";
+    body += "   Exceeded by: " + CURRENCY + fmt(over) + "\n\n";
+
+    // All categories
+    body += "── All Categories ──\n";
+    var cats = Object.keys(d.byCat).sort(function(a, b) { return d.byCat[b] - d.byCat[a]; });
+    var overCats = [];
+
+    cats.forEach(function(c) {
+        var spent = d.byCat[c];
+        var limit = d.catLimits[c] || 0;
+        var line = "  " + catIcon_(c) + " " + c + ": " + CURRENCY + fmt(spent);
+        if(limit > 0) {
+            line += " / " + CURRENCY + fmt(limit) + " (" + Math.round(spent / limit * 100) + "%)";
+            if(spent > limit) {
+                line += " ⚠️";
+                overCats.push({ name: c, over: spent - limit });
+            }
+        }
+        body += line + "\n";
+    });
+    body += "\n";
+
+    // Categories over budget
+    if(overCats.length > 0) {
+        body += "── Categories Over Budget ──\n";
+        overCats.forEach(function(c) {
+            body += "  " + c.name + ": +" + CURRENCY + fmt(c.over) + "\n";
+        });
+        body += "\n";
+    }
+
+    // Remaining days and daily budget
+    var now = new Date();
+    var endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    var daysLeft = Math.max(0, endOfMonth.getDate() - now.getDate());
+
+    body += "── Action Needed ──\n";
+    body += "  Remaining days in month: " + daysLeft + "\n";
+    if(daysLeft > 0) {
+        // How much over, so no spending recommended
+        body += "  You are " + CURRENCY + fmt(over) + " over budget. Consider reducing non-essential spending.\n";
+    }
+
+    var subject = "[RupiBook] 🔴 Overall Budget Exceeded — " + label;
+    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), subject, body);
 }
 
 /***
@@ -560,6 +967,26 @@ function setupSheets() {
         Logger.log("Column chart generation failed: " + err.message);
     }
 
+    // Grouped Bar Chart — Current Month: Spend vs Budget by Category
+    try {
+        var budgetChart = dash.newChart()
+            .setChartType(Charts.ChartType.BAR)
+            .addRange(dash.getRange("A10:A18"))  // Category names
+            .addRange(dash.getRange("B10:B18"))  // Budget (Limit)
+            .addRange(dash.getRange("C10:C18"))  // Spent
+            .setPosition(35, 1, 0, 0)
+            .setOption("title", "Current Month: Budget vs Actual")
+            .setOption("legend", { position: "top" })
+            .setOption("colors", ["#34A853", "#EA4335"])
+            .setOption("hAxis", { title: "Amount" })
+            .build();
+
+        dash.insertChart(budgetChart);
+
+    } catch (err) {
+        Logger.log("Budget bar chart generation failed: " + err.message);
+    }
+
 }
 
 /*** Adds a custom menu inside the spreadsheet for manual actions ***/
@@ -568,8 +995,25 @@ function onOpen() {
         .createMenu("💰 RupiBook")
         .addItem("Set up all sheets", "setupSheets")
         .addItem("Log autopay due today", "logAutopay")
-        .addItem("Send budget digest now", "sendDailyDigest")
+        .addSeparator()
+        .addItem("📊 Send monthly summary now", "sendMonthlySummaryManual")
+        .addItem("🔴 Send overall budget alert now", "sendOverallAlertManual")
+        .addItem("Run daily trigger", "dailyTrigger")
         .addToUi();
+}
+
+/*** Manual triggers for menu (use current month) ***/
+function sendMonthlySummaryManual() {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var month = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM");
+    sendMonthlySummary(ss, month);
+    SpreadsheetApp.getUi().alert("Monthly summary email sent for " + fmtMonthLabel_(month) + ".");
+}
+function sendOverallAlertManual() {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var month = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM");
+    sendOverallBudgetAlert(ss, month);
+    SpreadsheetApp.getUi().alert("Overall budget alert email sent for " + fmtMonthLabel_(month) + ".");
 }
 
 /*** ───────── Helpers ───────── ***/
@@ -680,6 +1124,17 @@ function getDashboardData() {
     var limit =
         Number(settings.getRange("B1").getValue()) || 0;
 
+    // Read category budgets for the dashboard overshoot chart
+    var categoryBudgets = {};
+    var budgets = ss.getSheetByName("Budgets");
+    if(budgets) {
+        var bData = budgets.getDataRange().getValues();
+        for(var j = 1; j < bData.length; j++) {
+            var cn = String(bData[j][0] || "").trim();
+            if(cn) categoryBudgets[cn] = Number(bData[j][1]) || 0;
+        }
+    }
+
     return {
         month: month,
         totalSpent: total,
@@ -687,7 +1142,8 @@ function getDashboardData() {
         remaining: limit - total,
         budgetPercent: limit > 0 ?
             Math.round((total / limit) * 100) : 0,
-        categoryTotals: categoryTotals
+        categoryTotals: categoryTotals,
+        categoryBudgets: categoryBudgets
     };
 }
 
@@ -775,11 +1231,16 @@ function getAnalyticsData() {
         });
     }
 
+    // Read the monthly budget for the trend chart
+    var settings = ss.getSheetByName("Settings");
+    var monthlyBudget = settings ? (Number(settings.getRange("B1").getValue()) || 0) : 0;
+
     return {
         categoryBreakdown: categoryBreakdown,
         sourceBreakdown: sourceBreakdown,
         monthlyTrend: monthlyTrend,
-        recentExpenses: recentExpenses
+        recentExpenses: recentExpenses,
+        monthlyBudget: monthlyBudget
     };
 }
 
@@ -867,7 +1328,7 @@ function searchExpenses(params) {
         var rowComments = String(rows[i][6] || "").trim();
 
         // Skip blank rows
-        if(!rowTs || !rowAmount) continue;
+        if(!rowTs || rowAmount === "") continue;
 
         // Category filter
         if(category && rowCategory !== category) continue;

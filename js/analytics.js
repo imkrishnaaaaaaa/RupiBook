@@ -30,9 +30,9 @@ const Analytics = (() => {
     };
   }
 
-  /* ── Filter blank rows ── */
+  /* ── Filter blank rows (allow ₹0 amounts) ── */
   function filterBlank(arr) {
-    return (arr || []).filter(e => e.amount && e.category && e.timestamp);
+    return (arr || []).filter(e => e.amount !== '' && e.amount !== null && e.amount !== undefined && e.category && e.timestamp);
   }
 
   /* ── Apply chip/date filters client-side (used on initial load data only) ── */

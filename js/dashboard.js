@@ -23,9 +23,9 @@ const Dashboard = (() => {
     };
   }
 
-  /* ── Filter blank rows from API ── */
+  /* ── Filter blank rows from API (allow ₹0 amounts) ── */
   function filterExpenses(arr) {
-    return (arr || []).filter(e => e.amount && e.category && e.timestamp);
+    return (arr || []).filter(e => e.amount !== '' && e.amount !== null && e.amount !== undefined && e.category && e.timestamp);
   }
 
   /* ── Render stats ── */
@@ -99,8 +99,8 @@ const Dashboard = (() => {
     });
   }
 
-  /* ── Monthly Trend Line Chart ── */
-  function renderTrendChart(monthlyTrend) {
+  /* ── Monthly Trend Combo Chart (Spend bars + Budget line) ── */
+  function renderTrendChart(monthlyTrend, monthlyBudget) {
     const canvas = document.getElementById('trendLineChart');
     if (!canvas) return;
 
@@ -111,29 +111,41 @@ const Dashboard = (() => {
       .slice(-6); // last 6 months
 
     const labels = sorted.map(([k]) => formatMonth(k));
-    const data   = sorted.map(([, v]) => Math.round(v));
+    const spendData = sorted.map(([, v]) => Math.round(v));
+    const budgetData = sorted.map(() => monthlyBudget || 0);
 
     if (charts.trend) charts.trend.destroy();
 
+    const datasets = [{
+      label: 'Spending',
+      data: spendData,
+      backgroundColor: PALETTE.slice(0, spendData.length).map(c => c + 'cc'),
+      borderRadius: 8,
+      borderSkipped: false,
+      order: 2
+    }];
+
+    // Only add budget line if a budget is set
+    if (monthlyBudget > 0) {
+      datasets.push({
+        label: 'Budget',
+        data: budgetData,
+        type: 'line',
+        borderColor: '#ef4444',
+        borderWidth: 2,
+        borderDash: [8, 4],
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointBackgroundColor: '#ef4444',
+        fill: false,
+        tension: 0,
+        order: 1
+      });
+    }
+
     charts.trend = new Chart(canvas, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Spending',
-          data,
-          borderColor: '#6366f1',
-          backgroundColor: isDark()
-            ? 'rgba(99,102,241,0.15)'
-            : 'rgba(99,102,241,0.08)',
-          fill: true,
-          tension: 0.4,
-          pointRadius: 5,
-          pointBackgroundColor: '#6366f1',
-          pointBorderColor: isDark() ? '#111827' : '#fff',
-          pointBorderWidth: 2
-        }]
-      },
+      type: 'bar',
+      data: { labels, datasets },
       options: {
         responsive: true,
         scales: {
@@ -151,8 +163,91 @@ const Dashboard = (() => {
           }
         },
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: monthlyBudget > 0,
+            position: 'top',
+            labels: {
+              color: chartDefaults().color,
+              font: { family: "'Inter', sans-serif", size: 12 },
+              usePointStyle: true,
+              pointStyleWidth: 10
+            }
+          },
           tooltip: { callbacks: { label: ctx => ' ' + fmtMoney(ctx.raw) } }
+        }
+      }
+    });
+  }
+
+  /* ── Budget Overshoot Chart (categories over budget) ── */
+  function renderOvershootChart(categoryTotals, categoryBudgets) {
+    const card = document.getElementById('overshootChartCard');
+    const canvas = document.getElementById('overshootBarChart');
+    if (!canvas || !card) return;
+
+    // Find categories that exceed their budget
+    const overItems = Object.entries(categoryTotals)
+      .map(([cat, spent]) => {
+        const budget = (categoryBudgets || {})[cat] || 0;
+        if (budget > 0 && spent > budget) {
+          return { cat, spent, budget, over: spent - budget };
+        }
+        return null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.over - a.over);
+
+    if (!overItems.length) {
+      card.style.display = 'none';
+      if (charts.overshoot) { charts.overshoot.destroy(); charts.overshoot = null; }
+      return;
+    }
+
+    card.style.display = '';
+    const labels = overItems.map(i => i.cat);
+    const data = overItems.map(i => Math.round(i.over));
+
+    if (charts.overshoot) charts.overshoot.destroy();
+
+    charts.overshoot = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Over Budget',
+          data,
+          backgroundColor: '#ef4444cc',
+          borderRadius: 8,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        responsive: true,
+        indexAxis: 'y',
+        scales: {
+          x: {
+            grid: { color: isDark() ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' },
+            ticks: {
+              color: chartDefaults().color,
+              font: { size: 11, family: "'Inter', sans-serif" },
+              callback: v => fmtMoney(v)
+            }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: chartDefaults().color, font: { size: 12, weight: '600', family: "'Inter', sans-serif" } }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const item = overItems[ctx.dataIndex];
+                return ` Over by ${fmtMoney(ctx.raw)} (${fmtMoney(item.spent)} / ${fmtMoney(item.budget)})`;
+              }
+            }
+          }
         }
       }
     });
@@ -262,7 +357,8 @@ const Dashboard = (() => {
 
       renderStats(dash);
       renderPieChart(dash.categoryTotals || {});
-      renderTrendChart(analytics.monthlyTrend || {});
+      renderOvershootChart(dash.categoryTotals || {}, dash.categoryBudgets || {});
+      renderTrendChart(analytics.monthlyTrend || {}, analytics.monthlyBudget || dash.monthlyLimit || 0);
       renderSourcesChart(analytics.sourceBreakdown || {});
       renderRecent(recent);
 
