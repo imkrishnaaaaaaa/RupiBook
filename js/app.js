@@ -696,6 +696,63 @@ const Settings = {
         btn.disabled = false;
       }
     });
+
+    // PWA - Check for updates
+    document.getElementById('pwaCheckUpdateBtn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('pwaCheckUpdateBtn');
+      const origText = btn.textContent;
+      btn.textContent = 'Checking…';
+      btn.disabled = true;
+      try {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.update();
+          
+          if (!reg.installing && !reg.waiting) {
+            showToast({ icon: '✅', title: 'Up to date', message: 'You are running the latest version.' });
+          } else {
+            showToast({ icon: '📥', title: 'Updating', message: 'Installing new version in background…' });
+          }
+        } else {
+          showToast({ icon: 'ℹ️', title: 'PWA Mode', message: 'Service Worker not active or not supported.' });
+        }
+      } catch (e) {
+        showToast({ icon: '❌', title: 'Error', message: 'Failed to check for updates: ' + e.message });
+      } finally {
+        btn.textContent = origText;
+        btn.disabled = false;
+      }
+    });
+
+    // PWA - Force reload and clear cache
+    document.getElementById('pwaHardRefreshBtn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('pwaHardRefreshBtn');
+      const origText = btn.textContent;
+      btn.textContent = 'Clearing…';
+      btn.disabled = true;
+      try {
+        if (window.caches) {
+          const keys = await caches.keys();
+          for (const key of keys) {
+            await caches.delete(key);
+          }
+        }
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const reg of registrations) {
+            await reg.unregister();
+          }
+        }
+        showToast({ icon: '🔄', title: 'Caches Cleared', message: 'Reloading application…' });
+        setTimeout(() => {
+          window.location.reload(true);
+        }, 1000);
+      } catch (e) {
+        showToast({ icon: '❌', title: 'Error', message: 'Failed to force refresh: ' + e.message });
+        btn.textContent = origText;
+        btn.disabled = false;
+      }
+    });
   },
 
   updateProfileBadge() {
@@ -739,8 +796,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Service worker — only on HTTP/HTTPS, not file://
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('./service-worker.js').catch(err => {
-      console.warn('SW registration failed:', err);
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(reg => {
+        // Proactively check for updates on launch
+        reg.update().catch(() => {});
+        // Check for updates when the window receives focus (app reopened)
+        window.addEventListener('focus', () => {
+          reg.update().catch(() => {});
+        });
+      })
+      .catch(err => {
+        console.warn('SW registration failed:', err);
+      });
+
+    // Reload the page when a new service worker takes over control
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
     });
   }
 });

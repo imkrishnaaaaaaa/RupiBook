@@ -371,12 +371,16 @@
     <div class="settings-section">
       <div class="settings-section-title">About</div>
       <div class="card" style="padding:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div>
             <div style="font-size:14px;font-weight:600">RupiBook PWA</div>
             <div class="text-muted" style="font-size:12px;margin-top:2px">Backed by Google Sheets · <span id="aboutVersion">v1.0</span></div>
           </div>
           <img src="icons/icon-192.png" alt="RupiBook" style="width:40px;height:40px;border-radius:10px;object-fit:cover;flex-shrink:0">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--border);padding-top:12px">
+          <button class="btn btn-secondary btn-sm" id="pwaCheckUpdateBtn" style="justify-content:center;width:100%">🔍 Check for Updates</button>
+          <button class="btn btn-danger btn-sm" id="pwaHardRefreshBtn" style="justify-content:center;width:100%">🔄 Force Reload &amp; Clear Cache</button>
         </div>
       </div>
     </div>
