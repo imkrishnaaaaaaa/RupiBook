@@ -21,10 +21,12 @@ function doPost(e) {
     var lock = LockService.getScriptLock();
     lock.tryLock(10000);
     try {
+        Logger.log("doPost: Received request. Payload: " + (e && e.postData ? e.postData.contents : "none"));
         var ss = SpreadsheetApp.getActiveSpreadsheet();
         var p = JSON.parse(e.postData.contents);
 
         if(p.action === "undo") {
+            Logger.log("doPost: Action is undo. Invoking undoLast()");
             return undoLast(ss);
         }
 
@@ -40,6 +42,7 @@ function doPost(e) {
         var tags = p.tags || "";
         var comments = p.comments || "";
 
+        Logger.log("doPost: Appending expense: amount=" + amount + ", category=" + category + ", source=" + source + ", paymentMode=" + paymentMode);
         // Expenses row: Timestamp | Amount | Category | Source | Payment Mode | Tags | Comments | Month
         sheet.appendRow([timestamp, amount, category, source, paymentMode, tags, comments, month]);
 
@@ -50,6 +53,7 @@ function doPost(e) {
         });
 
     } catch (err) {
+        Logger.log("doPost Error: " + err);
         return json({
             status: "error",
             message: "Error: " + err
@@ -73,8 +77,8 @@ function doPost(e) {
  *   (none)    → health check
  ***/
 function doGet(e) {
-
-    var action = e.parameter.action || "";
+    var action = (e && e.parameter && e.parameter.action) || "";
+    Logger.log("doGet: Received request with action='" + action + "'");
 
     if(action === "version") {
         return json({
@@ -123,6 +127,7 @@ function doGet(e) {
  * Also triggers email alerts when budgets are exceeded (with duplicate prevention).
  ***/
 function checkBudgets(ss, month, category) {
+    Logger.log("checkBudgets: Evaluating budgets for month=" + month + ", category=" + category);
     var settings = ss.getSheetByName("Settings");
 
     // Default 80% threshold if Settings sheet is missing
@@ -182,6 +187,8 @@ function checkBudgets(ss, month, category) {
         }
     }
 
+    Logger.log("checkBudgets: totalLimit=" + totalLimit + ", totalSpent=" + totalSpent + ", catLimit=" + catLimit + ", catSpent=" + catSpent + ", threshold=" + (threshold * 100) + "%");
+
     // Build alert messages
     var alerts = [];
 
@@ -224,10 +231,15 @@ function trySendCategoryAlert_(ss, month, category) {
 
     if(last) {
         var daysSince = (now - Number(last)) / (1000 * 60 * 60 * 24);
-        if(daysSince < 10) return; // Already sent within last 10 days
+        Logger.log("trySendCategoryAlert_: Checked alert for category '" + category + "'. Days since last alert: " + daysSince.toFixed(1));
+        if(daysSince < 10) {
+            Logger.log("trySendCategoryAlert_: Skipping alert for category '" + category + "' (already sent within 10 days)");
+            return;
+        }
     }
 
     try {
+        Logger.log("trySendCategoryAlert_: Sending budget alert email for category: " + category);
         sendCategoryBudgetAlert(ss, month, category);
         props.setProperty(key, String(now));
     } catch(e) {
@@ -243,10 +255,15 @@ function trySendOverallAlert_(ss, month) {
 
     if(last) {
         var daysSince = (now - Number(last)) / (1000 * 60 * 60 * 24);
-        if(daysSince < 10) return;
+        Logger.log("trySendOverallAlert_: Checked overall alert. Days since last alert: " + daysSince.toFixed(1));
+        if(daysSince < 10) {
+            Logger.log("trySendOverallAlert_: Skipping overall alert (already sent within 10 days)");
+            return;
+        }
     }
 
     try {
+        Logger.log("trySendOverallAlert_: Sending overall budget alert email");
         sendOverallBudgetAlert(ss, month);
         props.setProperty(key, String(now));
     } catch(e) {
@@ -256,16 +273,19 @@ function trySendOverallAlert_(ss, month) {
 
 /*** ───────── UNDO LAST ENTRY ───────── ***/
 function undoLast(ss) {
+    Logger.log("undoLast: Initiated last row removal request");
     var sheet = ss.getSheetByName("Expenses");
     var last = sheet.getLastRow();
     if(last > 1) {
         var row = sheet.getRange(last, 1, 1, 8).getValues()[0];
         sheet.deleteRow(last);
+        Logger.log("undoLast: Successfully removed row amount=" + row[1] + ", category=" + row[2] + ", timestamp=" + row[0]);
         return json({
             status: "ok",
             message: "↩️ Removed: " + CURRENCY + fmt(row[1]) + " · " + row[2]
         });
     }
+    Logger.log("undoLast: No expense row found to delete (sheet is empty or only has headers)");
     return json({
         status: "ok",
         message: "Nothing to undo."
@@ -281,15 +301,20 @@ function undoLast(ss) {
  * Day of Month matches today, it appends a row to Expenses.
  ***/
 function logAutopay() {
+    Logger.log("logAutopay: Running autopay log routine...");
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var ap = ss.getSheetByName("Autopay");
     var exp = ss.getSheetByName("Expenses");
-    if(!ap) return;
+    if(!ap) {
+        Logger.log("logAutopay: 'Autopay' sheet not found");
+        return;
+    }
     var today = new Date();
     var dayNum = Number(Utilities.formatDate(today, TIMEZONE, "d"));
     var timestamp = Utilities.formatDate(today, TIMEZONE, "yyyy-MM-dd HH:mm:ss");
     var month = Utilities.formatDate(today, TIMEZONE, "yyyy-MM");
     var rows = ap.getDataRange().getValues();
+    var autoLoggedCount = 0;
     for(var i = 1; i < rows.length; i++) {
         var name = rows[i][0],
             amount = rows[i][1],
@@ -297,9 +322,12 @@ function logAutopay() {
         var day = Number(rows[i][3]),
             active = rows[i][4];
         if(active === true && day === dayNum) {
+            Logger.log("logAutopay: Auto-logging active expense: '" + name + "', amount=" + amount + ", category=" + category + ", day=" + day);
             exp.appendRow([timestamp, amount, category, name, "Autopay", "autopay", "Auto-logged: " + name, month]);
+            autoLoggedCount++;
         }
     }
+    Logger.log("logAutopay: Finished autopay routine. Auto-logged " + autoLoggedCount + " items.");
 }
 
 /***
@@ -322,11 +350,13 @@ function logAutopay() {
 function dailyTrigger() {
     var today = new Date();
     var dayOfMonth = Number(Utilities.formatDate(today, TIMEZONE, "d"));
+    Logger.log("dailyTrigger: Executing daily trigger check for day of month = " + dayOfMonth);
 
     // On the 1st, send last month's summary
     if(dayOfMonth === 1) {
         var lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         var month = Utilities.formatDate(lastMonth, TIMEZONE, "yyyy-MM");
+        Logger.log("dailyTrigger: Day is 1st of month. Triggering monthly summary email for: " + month);
         var ss = SpreadsheetApp.getActiveSpreadsheet();
         try {
             sendMonthlySummary(ss, month);
@@ -344,6 +374,7 @@ function sendDailyDigest() { dailyTrigger(); }
  * Returns { total, byCat, bySource, byPayment, expenses[], catLimits }
  ***/
 function getMonthDetails_(ss, month) {
+    Logger.log("getMonthDetails_: Fetching full details for month=" + month);
     var data = ss.getSheetByName("Expenses").getDataRange().getValues();
     var total = 0;
     var byCat = {};      // category → amount
@@ -403,6 +434,7 @@ function getMonthDetails_(ss, month) {
         }
     }
 
+    Logger.log("getMonthDetails_: Completed month details fetch. Found " + txCount + " txns, total spent=" + total);
     return {
         total: total,
         txCount: txCount,
@@ -437,6 +469,7 @@ function catIcon_(cat) {
  * ═══════════════════════════════════════════
  ***/
 function sendMonthlySummary(ss, month) {
+    Logger.log("sendMonthlySummary: Preparing monthly digest email for month=" + month);
     var d = getMonthDetails_(ss, month);
     var settings = ss.getSheetByName("Settings");
     var totalLimit = settings ? (Number(settings.getRange("B1").getValue()) || 0) : 0;
@@ -540,7 +573,9 @@ function sendMonthlySummary(ss, month) {
     }
 
     var subject = "[RupiBook] 📊 Monthly Summary — " + label;
-    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), subject, body);
+    var recipient = Session.getEffectiveUser().getEmail();
+    Logger.log("sendMonthlySummary: Sending digest email to " + recipient + ", subject='" + subject + "'");
+    MailApp.sendEmail(recipient, subject, body);
 }
 
 /***
@@ -550,6 +585,7 @@ function sendMonthlySummary(ss, month) {
  * ═══════════════════════════════════════════
  ***/
 function sendCategoryBudgetAlert(ss, month, category) {
+    Logger.log("sendCategoryBudgetAlert: Preparing category budget exceed alert email for " + category + " (" + month + ")");
     var d = getMonthDetails_(ss, month);
     var label = fmtMonthLabel_(month);
     var catSpent = d.byCat[category] || 0;
@@ -619,7 +655,9 @@ function sendCategoryBudgetAlert(ss, month, category) {
     }
 
     var subject = "[RupiBook] 🚨 Budget Exceeded — " + category + " — " + label;
-    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), subject, body);
+    var recipient = Session.getEffectiveUser().getEmail();
+    Logger.log("sendCategoryBudgetAlert: Sending budget exceed email to " + recipient + ", subject='" + subject + "'");
+    MailApp.sendEmail(recipient, subject, body);
 }
 
 /***
@@ -629,6 +667,7 @@ function sendCategoryBudgetAlert(ss, month, category) {
  * ═══════════════════════════════════════════
  ***/
 function sendOverallBudgetAlert(ss, month) {
+    Logger.log("sendOverallBudgetAlert: Preparing overall budget exceed alert email for " + month);
     var d = getMonthDetails_(ss, month);
     var settings = ss.getSheetByName("Settings");
     var totalLimit = settings ? (Number(settings.getRange("B1").getValue()) || 0) : 0;
@@ -687,7 +726,9 @@ function sendOverallBudgetAlert(ss, month) {
     }
 
     var subject = "[RupiBook] 🔴 Overall Budget Exceeded — " + label;
-    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), subject, body);
+    var recipient = Session.getEffectiveUser().getEmail();
+    Logger.log("sendOverallBudgetAlert: Sending overall budget exceed email to " + recipient + ", subject='" + subject + "'");
+    MailApp.sendEmail(recipient, subject, body);
 }
 
 /***
@@ -699,11 +740,13 @@ function sendOverallBudgetAlert(ss, month) {
  * The Dashboard is always rebuilt from scratch on each run.
  ***/
 function setupSheets() {
+    Logger.log("setupSheets: Re-initializing and configuring sheets structure...");
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
     // ── 1. Expenses ──
     var exp = ss.getSheetByName("Expenses") || ss.insertSheet("Expenses");
     if(exp.getLastRow() === 0) {
+        Logger.log("setupSheets: Expenses sheet empty. Writing default headers...");
         exp.appendRow(["Timestamp", "Amount", "Category", "Source", "Payment Mode", "Tags", "Comments", "Month"]);
         exp.getRange("1:1").setFontWeight("bold").setBackground("#4285F4").setFontColor("#ffffff");
         exp.setFrozenRows(1);
@@ -713,6 +756,7 @@ function setupSheets() {
     // Edit the amounts below to set your initial per-category monthly limits.
     var bud = ss.getSheetByName("Budgets") || ss.insertSheet("Budgets");
     if(bud.getLastRow() === 0) {
+        Logger.log("setupSheets: Budgets sheet empty. Writing default category limits...");
         bud.appendRow(["Category", "Monthly Limit"]);
         bud.getRange(2, 1, 8, 2).setValues([
             ["Food", 2000],
@@ -732,6 +776,7 @@ function setupSheets() {
     // B2 = Alert threshold percentage (e.g. 75 means warn at 75% of limit)
     var set = ss.getSheetByName("Settings") || ss.insertSheet("Settings");
     if(set.getLastRow() === 0) {
+        Logger.log("setupSheets: Settings sheet empty. Writing default configurations...");
         set.getRange("A1").setValue("Monthly Total Limit");
         set.getRange("B1").setValue(25000);
         set.getRange("A2").setValue("Alert Threshold %");
@@ -744,6 +789,7 @@ function setupSheets() {
     // logAutopay() auto-logs these on the specified day (requires a daily trigger).
     var ap = ss.getSheetByName("Autopay") || ss.insertSheet("Autopay");
     if(ap.getLastRow() === 0) {
+        Logger.log("setupSheets: Autopay sheet empty. Writing default list and checkboxes...");
         ap.appendRow(["Name", "Amount", "Category", "Day of Month", "Active"]);
         ap.getRange(2, 1, 3, 5).setValues([
             ["Netflix", 0, "Entertainment", 1, true],
@@ -759,6 +805,7 @@ function setupSheets() {
     // Add/edit/remove rows here to customise your categories and sources.
     var config = ss.getSheetByName("Config") || ss.insertSheet("Config");
     if(config.getLastRow() === 0) {
+        Logger.log("setupSheets: Config sheet empty. Writing category-source maps...");
         config.appendRow(["Category", "Source"]);
         config.getRange(2, 1, 25, 2).setValues([
             ["Transport", "Rapido/Uber"],
@@ -794,6 +841,7 @@ function setupSheets() {
     // Add or remove payment methods here. The PWA reads Column A.
     var pm = ss.getSheetByName("PaymentModes") || ss.insertSheet("PaymentModes");
     if(pm.getLastRow() === 0) {
+        Logger.log("setupSheets: PaymentModes sheet empty. Writing defaults...");
         pm.appendRow(["Payment Mode"]);
         pm.getRange(2, 1, 9, 1).setValues([
             ["Cash"],
@@ -810,6 +858,7 @@ function setupSheets() {
     }
 
     // ── 7. Dashboard (always rebuilt) ──
+    Logger.log("setupSheets: Rebuilding Dashboard sheet layout and formatting...");
     var dash = ss.getSheetByName("Dashboard");
 
     if(!dash) {
@@ -987,6 +1036,7 @@ function setupSheets() {
         Logger.log("Budget bar chart generation failed: " + err.message);
     }
 
+    Logger.log("setupSheets: Spreadsheet structures initialized successfully.");
 }
 
 /*** Adds a custom menu inside the spreadsheet for manual actions ***/
@@ -1039,6 +1089,7 @@ function fmt(n) {
 
 // Returns category→source mapping and payment modes for the PWA dropdowns
 function getConfigData() {
+    Logger.log("getConfigData: Fetching dropdown categories, mapping, and payment modes...");
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Config");
 
@@ -1073,6 +1124,7 @@ function getConfigData() {
         }
     }
 
+    Logger.log("getConfigData: Loaded " + categories.length + " categories and " + paymentModes.length + " payment modes.");
     return {
         categories: categories,
         mapping: mapping,
@@ -1082,6 +1134,7 @@ function getConfigData() {
 
 // Returns current month's summary for the dashboard
 function getDashboardData() {
+    Logger.log("getDashboardData: Preparing statistics for the dashboard...");
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
     var expenses = ss.getSheetByName("Expenses");
@@ -1135,6 +1188,7 @@ function getDashboardData() {
         }
     }
 
+    Logger.log("getDashboardData: Compiled metrics for " + month + ". Spent=" + total + ", limit=" + limit);
     return {
         month: month,
         totalSpent: total,
@@ -1149,7 +1203,7 @@ function getDashboardData() {
 
 // Returns the last 20 expenses (newest first) for the dashboard recent list
 function getRecentExpenses() {
-
+    Logger.log("getRecentExpenses: Retrieving the 20 most recent transactions...");
     var sheet =
         SpreadsheetApp
         .getActiveSpreadsheet()
@@ -1173,12 +1227,13 @@ function getRecentExpenses() {
         });
     }
 
+    Logger.log("getRecentExpenses: Returned " + result.length + " recent items.");
     return result;
 }
 
 // Returns breakdowns and last 20 expenses for the analytics page
 function getAnalyticsData() {
-
+    Logger.log("getAnalyticsData: Fetching category breakdowns, monthly trends and history...");
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var expenses = ss.getSheetByName("Expenses");
 
@@ -1235,6 +1290,7 @@ function getAnalyticsData() {
     var settings = ss.getSheetByName("Settings");
     var monthlyBudget = settings ? (Number(settings.getRange("B1").getValue()) || 0) : 0;
 
+    Logger.log("getAnalyticsData: Compiled breakdown for " + Object.keys(monthlyTrend).length + " month(s).");
     return {
         categoryBreakdown: categoryBreakdown,
         sourceBreakdown: sourceBreakdown,
@@ -1246,7 +1302,7 @@ function getAnalyticsData() {
 
 // Returns distinct categories, sources, and tags for filter chips
 function getFilterValues() {
-
+    Logger.log("getFilterValues: Aggregating unique categories, sources, and tags for client filters...");
     var sheet =
         SpreadsheetApp.getActiveSpreadsheet()
         .getSheetByName("Expenses");
@@ -1281,10 +1337,14 @@ function getFilterValues() {
         }
     }
 
+    var keysCat = Object.keys(categories);
+    var keysSrc = Object.keys(sources);
+    var keysTag = Object.keys(tags);
+    Logger.log("getFilterValues: Found " + keysCat.length + " categories, " + keysSrc.length + " sources, and " + keysTag.length + " unique tags.");
     return {
-        categories: Object.keys(categories).sort(),
-        sources: Object.keys(sources).sort(),
-        tags: Object.keys(tags).sort()
+        categories: keysCat.sort(),
+        sources: keysSrc.sort(),
+        tags: keysTag.sort()
     };
 }
 
@@ -1302,6 +1362,7 @@ function getFilterValues() {
  * Returns the most recent matching expenses (newest first).
  ***/
 function searchExpenses(params) {
+    Logger.log("searchExpenses: Querying expenses. Parameters: " + JSON.stringify(params));
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Expenses");
     var rows = sheet.getDataRange().getValues();
 
@@ -1364,5 +1425,6 @@ function searchExpenses(params) {
         });
     }
 
+    Logger.log("searchExpenses: Found " + results.length + " matching expense(s)");
     return results;
 }
