@@ -32,7 +32,6 @@ function doPost(e) {
 
         var sheet = ss.getSheetByName("Expenses");
         var now = new Date();
-        var timestamp = Utilities.formatDate(now, TIMEZONE, "yyyy-MM-dd HH:mm:ss");
         var month = Utilities.formatDate(now, TIMEZONE, "yyyy-MM");
 
         var amount = Number(p.amount) || 0;
@@ -43,8 +42,8 @@ function doPost(e) {
         var comments = p.comments || "";
 
         Logger.log("doPost: Appending expense: amount=" + amount + ", category=" + category + ", source=" + source + ", paymentMode=" + paymentMode);
-        // Expenses row: Timestamp | Amount | Category | Source | Payment Mode | Tags | Comments | Month
-        sheet.appendRow([timestamp, amount, category, source, paymentMode, tags, comments, month]);
+        // Expenses row: Timestamp (Date) | Amount | Category | Source | Payment Mode | Tags | Comments
+        sheet.appendRow([now, amount, category, source, paymentMode, tags, comments]);
 
         var msg = checkBudgets(ss, month, category);
         return json({
@@ -311,8 +310,6 @@ function logAutopay() {
     }
     var today = new Date();
     var dayNum = Number(Utilities.formatDate(today, TIMEZONE, "d"));
-    var timestamp = Utilities.formatDate(today, TIMEZONE, "yyyy-MM-dd HH:mm:ss");
-    var month = Utilities.formatDate(today, TIMEZONE, "yyyy-MM");
     var rows = ap.getDataRange().getValues();
     var autoLoggedCount = 0;
     for(var i = 1; i < rows.length; i++) {
@@ -323,7 +320,8 @@ function logAutopay() {
             active = rows[i][4];
         if(active === true && day === dayNum) {
             Logger.log("logAutopay: Auto-logging active expense: '" + name + "', amount=" + amount + ", category=" + category + ", day=" + day);
-            exp.appendRow([timestamp, amount, category, name, "Autopay", "autopay", "Auto-logged: " + name, month]);
+            // Append with Date object directly, and omit Month since ARRAYFORMULA handles column H
+            exp.appendRow([today, amount, category, name, "Autopay", "autopay", "Auto-logged: " + name]);
             autoLoggedCount++;
         }
     }
