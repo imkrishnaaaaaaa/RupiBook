@@ -737,7 +737,8 @@ const Settings = {
             await caches.delete(key);
           }
         }
-        if ('serviceWorker' in navigator) {
+        // Service Worker APIs throw on file:// protocol — only attempt on HTTP/HTTPS
+        if ('serviceWorker' in navigator && location.protocol !== 'file:') {
           const registrations = await navigator.serviceWorker.getRegistrations();
           for (const reg of registrations) {
             await reg.unregister();
