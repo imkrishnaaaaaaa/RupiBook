@@ -731,312 +731,560 @@ function sendOverallBudgetAlert(ss, month) {
     MailApp.sendEmail(recipient, subject, body);
 }
 
-/***
- * ───────── ONE-TIME SETUP ─────────
- * Run this once after pasting the code. It creates all required sheets
- * with headers, example data, and a formatted Dashboard.
- *
- * Safe to re-run: it only populates sheets that have no data (getLastRow() === 0).
- * The Dashboard is always rebuilt from scratch on each run.
- ***/
+// ============================================================
+//  RupiBook — AppScript  (v3 — 3 improvements from final review)
+//
+//  Changes from v2:
+//    Improvement A — SUMIFS uses TEXT(TODAY(),"yyyy-MM") instead of
+//                    TEXT($B$3,"yyyy-MM") so editing B3 can't break it.
+//    Improvement B — syncBudgetCategories() extracted as its own function.
+//                    refreshDashboard() now calls it, making Refresh
+//                    Dashboard truly independent of Setup Sheets.
+//    Improvement C — getMaxRows() replaced with a bounded scan ceiling
+//                    (max of dash.getLastRow()+50 and Expenses.getLastRow())
+//                    so column scans don't walk thousands of empty rows.
+//
+//  All v2 fixes are preserved unchanged.
+// ============================================================
+
+// ── Named constants ──────────────────────────────────────────
+var DEFAULT_BUDGET_LIMIT = 1000; // Default monthly limit (₹) for new categories
+
+
+// ============================================================
+//  syncBudgetCategories                               (NEW — Improvement B)
+//  Reads unique categories from Config and appends any that are
+//  missing from Budgets. Non-destructive: existing rows untouched.
+//  Called by both setupSheets() and refreshDashboard().
+// ============================================================
+function syncBudgetCategories() {
+  Logger.log("syncBudgetCategories: Starting...");
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  var config = ss.getSheetByName("Config");
+  var bud    = ss.getSheetByName("Budgets");
+
+  if (!config || !bud) {
+    Logger.log("syncBudgetCategories: Config or Budgets sheet missing — skipping.");
+    return;
+  }
+
+  // Read unique categories from Config (case-insensitive dedup)
+  var configLastRow = config.getLastRow();
+  var configCategories = [];
+  if (configLastRow > 1) {
+    var configData = config.getRange(2, 1, configLastRow - 1, 1).getValues();
+    var seenLower  = {};
+    for (var r = 0; r < configData.length; r++) {
+      var cat    = String(configData[r][0]).trim();
+      var catKey = cat.toLowerCase();
+      if (cat !== "" && !seenLower[catKey]) {
+        seenLower[catKey] = true;
+        configCategories.push(cat);
+      }
+    }
+  }
+
+  // Read existing Budgets categories (case-insensitive lookup)
+  var budLastRow       = bud.getLastRow();
+  var existingBudLower = {};
+  if (budLastRow > 1) {
+    var budData = bud.getRange(2, 1, budLastRow - 1, 1).getValues();
+    for (var b = 0; b < budData.length; b++) {
+      var budCat = String(budData[b][0]).trim();
+      if (budCat !== "") existingBudLower[budCat.toLowerCase()] = true;
+    }
+  }
+
+  // Append categories missing from Budgets
+  var newRows = [];
+  for (var c = 0; c < configCategories.length; c++) {
+    var key = configCategories[c].toLowerCase();
+    if (!existingBudLower[key]) {
+      Logger.log("syncBudgetCategories: New budget category → " + configCategories[c]);
+      newRows.push([configCategories[c], DEFAULT_BUDGET_LIMIT]);
+    }
+  }
+  if (newRows.length > 0) {
+    bud.getRange(bud.getLastRow() + 1, 1, newRows.length, 2).setValues(newRows);
+    Logger.log("syncBudgetCategories: Appended " + newRows.length + " new row(s).");
+  } else {
+    Logger.log("syncBudgetCategories: Nothing to append — Budgets already in sync.");
+  }
+}
+
+
+// ============================================================
+//  setupSheets
+//  Creates / initialises all sheets, syncs Budgets from Config
+//  via syncBudgetCategories(), then delegates to refreshDashboard().
+// ============================================================
 function setupSheets() {
-    Logger.log("setupSheets: Re-initializing and configuring sheets structure...");
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+  Logger.log("setupSheets: Starting...");
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // ── 1. Expenses ──
-    var exp = ss.getSheetByName("Expenses") || ss.insertSheet("Expenses");
-    if(exp.getLastRow() === 0) {
-        Logger.log("setupSheets: Expenses sheet empty. Writing default headers...");
-        exp.appendRow(["Timestamp", "Amount", "Category", "Source", "Payment Mode", "Tags", "Comments", "Month"]);
-        exp.getRange("1:1").setFontWeight("bold").setBackground("#4285F4").setFontColor("#ffffff");
-        exp.setFrozenRows(1);
-    }
+  // ── 1. Expenses ──────────────────────────────────────────────
+  var exp = ss.getSheetByName("Expenses") || ss.insertSheet("Expenses");
+  if (exp.getLastRow() === 0) {
+    Logger.log("setupSheets: Expenses empty — writing headers.");
+    exp.appendRow(["Timestamp", "Amount", "Category", "Source",
+                   "Payment Mode", "Tags", "Comments", "Month"]);
+    exp.getRange("1:1")
+       .setFontWeight("bold")
+       .setBackground("#4285F4")
+       .setFontColor("#ffffff");
+    exp.setFrozenRows(1);
+  }
 
-    // ── 2. Budgets ──
-    // Edit the amounts below to set your initial per-category monthly limits.
-    var bud = ss.getSheetByName("Budgets") || ss.insertSheet("Budgets");
-    if(bud.getLastRow() === 0) {
-        Logger.log("setupSheets: Budgets sheet empty. Writing default category limits...");
-        bud.appendRow(["Category", "Monthly Limit"]);
-        bud.getRange(2, 1, 8, 2).setValues([
-            ["Food", 2000],
-            ["Groceries", 5000],
-            ["Transport", 2000],
-            ["Shopping", 3000],
-            ["Bills", 4000],
-            ["Entertainment", 1500],
-            ["Health", 2000],
-            ["Others", 1000]
-        ]);
-        bud.getRange("1:1").setFontWeight("bold").setBackground("#34A853").setFontColor("#ffffff");
-    }
+  // Format column A as a real date every run
+  exp.getRange("A:A").setNumberFormat("dd-MM-yyyy HH:mm:ss");
 
-    // ── 3. Settings ──
-    // B1 = Overall monthly spending limit
-    // B2 = Alert threshold percentage (e.g. 75 means warn at 75% of limit)
-    var set = ss.getSheetByName("Settings") || ss.insertSheet("Settings");
-    if(set.getLastRow() === 0) {
-        Logger.log("setupSheets: Settings sheet empty. Writing default configurations...");
-        set.getRange("A1").setValue("Monthly Total Limit");
-        set.getRange("B1").setValue(25000);
-        set.getRange("A2").setValue("Alert Threshold %");
-        set.getRange("B2").setValue(75);
-        set.getRange("A1:A2").setFontWeight("bold");
-    }
+  // ARRAYFORMULA for Month (H2); idempotent
+  var h2 = exp.getRange("H2");
+  if (h2.getFormula().indexOf("ARRAYFORMULA") === -1) {
+    Logger.log("setupSheets: Writing Month ARRAYFORMULA into H2.");
+    h2.setFormula('=ARRAYFORMULA(IF(A2:A="","",TEXT(A2:A,"yyyy-MM")))');
+  }
 
-    // ── 4. Autopay ──
-    // Add your recurring bills here. Set Active=true and the Day of Month.
-    // logAutopay() auto-logs these on the specified day (requires a daily trigger).
-    var ap = ss.getSheetByName("Autopay") || ss.insertSheet("Autopay");
-    if(ap.getLastRow() === 0) {
-        Logger.log("setupSheets: Autopay sheet empty. Writing default list and checkboxes...");
-        ap.appendRow(["Name", "Amount", "Category", "Day of Month", "Active"]);
-        ap.getRange(2, 1, 3, 5).setValues([
-            ["Netflix", 0, "Entertainment", 1, true],
-            ["Investment", 0, "Bills", 1, true],
-            ["Claude", 0, "Education", 5, true]
-        ]);
-        ap.getRange(2, 5, 3, 1).insertCheckboxes();
-        ap.getRange("1:1").setFontWeight("bold").setBackground("#FBBC04");
-    }
+  // ── 2. Config ────────────────────────────────────────────────
+  var config = ss.getSheetByName("Config") || ss.insertSheet("Config");
+  if (config.getLastRow() === 0) {
+    Logger.log("setupSheets: Config empty — writing defaults.");
+    config.appendRow(["Category", "Source"]);
+    config.getRange(2, 1, 25, 2).setValues([
+      ["Transport",     "Rapido/Uber"],
+      ["Transport",     "Petrol"],
+      ["Transport",     "CityTravel"],
+      ["Transport",     "LongTravel"],
+      ["Transport",     "Others"],
+      ["Food",          "Zomato/Swiggy"],
+      ["Food",          "FastFood"],
+      ["Food",          "EatOutside"],
+      ["Groceries",     "QuickDelivery"],
+      ["Groceries",     "Outside"],
+      ["Entertainment", "Movies"],
+      ["Entertainment", "Subscriptions"],
+      ["Entertainment", "Offline"],
+      ["Shopping",      "E-Commerce"],
+      ["Shopping",      "Offline"],
+      ["Shopping",      "Others"],
+      ["Bills",         "MobileRecharge"],
+      ["Bills",         "Electricity"],
+      ["Bills",         "Rent"],
+      ["Bills",         "Others"],
+      ["Health",        "Consultation"],
+      ["Health",        "Medicine"],
+      ["Donate",        "Online"],
+      ["Donate",        "Offline"],
+      ["Others",        "Others"]
+    ]);
+    config.getRange("1:1")
+          .setFontWeight("bold")
+          .setBackground("#EA4335")
+          .setFontColor("#ffffff");
+  }
 
-    // ── 5. Config ──
-    // Each row maps a Category to a Source. The PWA reads this to populate dropdowns.
-    // Add/edit/remove rows here to customise your categories and sources.
-    var config = ss.getSheetByName("Config") || ss.insertSheet("Config");
-    if(config.getLastRow() === 0) {
-        Logger.log("setupSheets: Config sheet empty. Writing category-source maps...");
-        config.appendRow(["Category", "Source"]);
-        config.getRange(2, 1, 25, 2).setValues([
-            ["Transport", "Rapido/Uber"],
-            ["Transport", "Petrol"],
-            ["Transport", "CityTravel"],
-            ["Transport", "LongTravel"],
-            ["Transport", "Others"],
-            ["Food", "Zomato/Swiggy"],
-            ["Food", "FastFood"],
-            ["Food", "EatOutside"],
-            ["Groceries", "QuickDelivery"],
-            ["Groceries", "Outside"],
-            ["Entertainment", "Movies"],
-            ["Entertainment", "Subscriptions"],
-            ["Entertainment", "Offline"],
-            ["Shopping", "E-Commerce"],
-            ["Shopping", "Offline"],
-            ["Shopping", "Others"],
-            ["Bills", "MobileRecharge"],
-            ["Bills", "Electricity"],
-            ["Bills", "Rent"],
-            ["Bills", "Others"],
-            ["Health", "Consultation"],
-            ["Health", "Medicine"],
-            ["Donate", "Online"],
-            ["Donate", "Offline"],
-            ["Others", "Others"]
-        ]);
-        config.getRange("1:1").setFontWeight("bold").setBackground("#EA4335").setFontColor("#ffffff");
-    }
+  // ── 3. Budgets ───────────────────────────────────────────────
+  var bud = ss.getSheetByName("Budgets") || ss.insertSheet("Budgets");
+  if (bud.getLastRow() === 0) {
+    Logger.log("setupSheets: Budgets empty — writing header.");
+    bud.appendRow(["Category", "Monthly Limit"]);
+    bud.getRange("1:1")
+       .setFontWeight("bold")
+       .setBackground("#34A853")
+       .setFontColor("#ffffff");
+  }
 
-    // ── 6. PaymentModes ──
-    // Add or remove payment methods here. The PWA reads Column A.
-    var pm = ss.getSheetByName("PaymentModes") || ss.insertSheet("PaymentModes");
-    if(pm.getLastRow() === 0) {
-        Logger.log("setupSheets: PaymentModes sheet empty. Writing defaults...");
-        pm.appendRow(["Payment Mode"]);
-        pm.getRange(2, 1, 9, 1).setValues([
-            ["Cash"],
-            ["UPI"],
-            ["PhonePe"],
-            ["GPay"],
-            ["Paytm"],
-            ["Amazon Wallet"],
-            ["CreditCard"],
-            ["DebitCard"],
-            ["NetBanking"]
-        ]);
-        pm.getRange("1:1").setFontWeight("bold").setBackground("#9C27B0").setFontColor("#ffffff");
-    }
+  // Improvement B: delegate budget sync to shared function
+  syncBudgetCategories();
 
-    // ── 7. Dashboard (always rebuilt) ──
-    Logger.log("setupSheets: Rebuilding Dashboard sheet layout and formatting...");
-    var dash = ss.getSheetByName("Dashboard");
+  // ── 4. Settings ──────────────────────────────────────────────
+  var set = ss.getSheetByName("Settings") || ss.insertSheet("Settings");
+  if (set.getLastRow() === 0) {
+    Logger.log("setupSheets: Settings empty — writing defaults.");
+    set.getRange("A1").setValue("Monthly Total Limit");
+    set.getRange("B1").setValue(25000);
+    set.getRange("A2").setValue("Alert Threshold %");
+    set.getRange("B2").setValue(75);
+    set.getRange("A1:A2").setFontWeight("bold");
+  }
 
-    if(!dash) {
-        dash = ss.insertSheet("Dashboard");
-    }
+  // ── 5. Autopay ───────────────────────────────────────────────
+  var ap = ss.getSheetByName("Autopay") || ss.insertSheet("Autopay");
+  if (ap.getLastRow() === 0) {
+    Logger.log("setupSheets: Autopay empty — writing defaults.");
+    ap.appendRow(["Name", "Amount", "Category", "Day of Month", "Active"]);
+    ap.getRange(2, 1, 3, 5).setValues([
+      ["Netflix",    0, "Entertainment", 1, true],
+      ["Investment", 0, "Bills",         1, true],
+      ["Claude",     0, "Education",     5, true]
+    ]);
+    ap.getRange(2, 5, 3, 1).insertCheckboxes();
+    ap.getRange("1:1").setFontWeight("bold").setBackground("#FBBC04");
+  }
 
-    ss.setActiveSheet(dash);
-    ss.moveActiveSheet(1); // Dashboard tab always first
+  // ── 6. PaymentModes ──────────────────────────────────────────
+  var pm = ss.getSheetByName("PaymentModes") || ss.insertSheet("PaymentModes");
+  if (pm.getLastRow() === 0) {
+    Logger.log("setupSheets: PaymentModes empty — writing defaults.");
+    pm.appendRow(["Payment Mode"]);
+    pm.getRange(2, 1, 9, 1).setValues([
+      ["Cash"], ["UPI"], ["PhonePe"], ["GPay"], ["Paytm"],
+      ["Amazon Wallet"], ["CreditCard"], ["DebitCard"], ["NetBanking"]
+    ]);
+    pm.getRange("1:1")
+      .setFontWeight("bold")
+      .setBackground("#9C27B0")
+      .setFontColor("#ffffff");
+  }
 
-    dash.clearContents();
-    dash.clearFormats();
-    dash.clearConditionalFormatRules();
+  // ── 7. Delegate to refreshDashboard ──────────────────────────
+  Logger.log("setupSheets: Delegating to refreshDashboard().");
+  refreshDashboard();
+  Logger.log("setupSheets: Complete.");
+}
 
-    var charts = dash.getCharts();
-    for(var i = 0; i < charts.length; i++) {
-        dash.removeChart(charts[i]);
-    }
 
-    // Title
-    dash.getRange("A1").setValue("📊 EXPENSE DASHBOARD");
-    dash.getRange("A1:K1").merge().setFontSize(16).setFontWeight("bold").setFontColor("#1F497D").setVerticalAlignment("middle");
-    dash.setRowHeight(1, 40);
+// ============================================================
+//  refreshDashboard
+//  Syncs Budgets from Config (Improvement B), then fully clears
+//  and rebuilds the Dashboard dynamically.
+//  Safe to run standalone from the menu — touches no data sheets
+//  other than appending missing Budgets rows.
+// ============================================================
+function refreshDashboard() {
+  Logger.log("refreshDashboard: Starting rebuild...");
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // KPI Summary (A3:B7)
-    dash.getRange("A3").setValue("This month");
-    dash.getRange("B3").setFormula("=EOMONTH(TODAY(),-1)+1").setNumberFormat("mmmm yyyy");
+  // Improvement B: sync before reading Budgets so new Config categories
+  // appear immediately without requiring a full Setup Sheets run.
+  syncBudgetCategories();
 
-    dash.getRange("A4").setValue("Total spent");
-    dash.getRange("B4").setFormula("=SUM(C11:C18)").setNumberFormat("$#,##0.00");
+  var bud = ss.getSheetByName("Budgets");
+  if (!bud) {
+    SpreadsheetApp.getUi().alert("Budgets sheet not found. Run ⚙️ Setup Sheets first.");
+    return;
+  }
 
-    dash.getRange("A5").setValue("Monthly limit");
-    dash.getRange("B5").setFormula("=Settings!B1").setNumberFormat("$#,##0.00");
+  // ── Compute dynamic row bounds from Budgets ───────────────────
+  var numCategories = Math.max(0, bud.getLastRow() - 1);
+  var lastTableRow  = 10 + numCategories;
+  Logger.log("refreshDashboard: numCategories=" + numCategories +
+             "  lastTableRow=" + lastTableRow);
 
-    dash.getRange("A6").setValue("Remaining");
-    dash.getRange("B6").setFormula("=B5-B4").setNumberFormat("$#,##0.00");
+  // ── Prepare Dashboard sheet ───────────────────────────────────
+  var dash = ss.getSheetByName("Dashboard") || ss.insertSheet("Dashboard");
+  ss.setActiveSheet(dash);
+  ss.moveActiveSheet(1);
 
-    dash.getRange("A7").setValue("% used");
-    dash.getRange("B7").setFormula("=B4/B5").setNumberFormat("0.00%");
+  dash.clearContents();
+  dash.clearFormats();
+  dash.clearConditionalFormatRules();
+  var charts = dash.getCharts();
+  for (var i = 0; i < charts.length; i++) { dash.removeChart(charts[i]); }
 
-    dash.getRange("A3:A7").setFontWeight("bold").setBackground("#F3F3F3");
-    dash.getRange("A3:B7").setBorder(true, true, true, true, true, true, "#CCCCCC", SpreadsheetApp.BorderStyle.SOLID);
+  // ── Title ─────────────────────────────────────────────────────
+  dash.getRange("A1").setValue("📊 EXPENSE DASHBOARD");
+  dash.getRange("A1:K1")
+      .merge()
+      .setFontSize(16)
+      .setFontWeight("bold")
+      .setFontColor("#1F497D")
+      .setVerticalAlignment("middle");
+  dash.setRowHeight(1, 40);
 
-    // Category Budget Table (A10:E18) — linked to Budgets sheet
-    var tableHeaders = ["Category", "Limit", "Spent", "Remaining", "% Used"];
-    dash.getRange("A10:E10").setValues([tableHeaders])
+  // ── KPI Summary (A3:B7) ───────────────────────────────────────
+  dash.getRange("A3").setValue("This month");
+  dash.getRange("B3")
+      .setFormula("=EOMONTH(TODAY(),-1)+1")
+      .setNumberFormat("mmmm yyyy");
+
+  dash.getRange("A4").setValue("Total spent");
+  dash.getRange("B4")
+      .setFormula("=SUM(C11:C" + lastTableRow + ")")
+      .setNumberFormat("₹#,##0.00");
+
+  dash.getRange("A5").setValue("Monthly limit");
+  dash.getRange("B5").setFormula("=Settings!B1").setNumberFormat("₹#,##0.00");
+
+  dash.getRange("A6").setValue("Remaining");
+  dash.getRange("B6").setFormula("=B5-B4").setNumberFormat("₹#,##0.00");
+
+  dash.getRange("A7").setValue("% used");
+  dash.getRange("B7").setFormula("=B4/B5").setNumberFormat("0.00%");
+
+  dash.getRange("A3:A7").setFontWeight("bold").setBackground("#F3F3F3");
+  dash.getRange("A3:B7").setBorder(
+    true, true, true, true, true, true,
+    "#CCCCCC", SpreadsheetApp.BorderStyle.SOLID
+  );
+
+  // ── Category Budget Table ─────────────────────────────────────
+  if (numCategories > 0) {
+    dash.getRange("A10:E10")
+        .setValues([["Category", "Limit", "Spent", "Remaining", "% Used"]])
         .setFontWeight("bold")
         .setBackground("#4285F4")
         .setFontColor("#ffffff")
         .setHorizontalAlignment("center");
 
-    for(var i = 11; i <= 18; i++) {
-        var budgetRow = i - 9; // Maps to Budgets rows 2–9
-        dash.getRange("A" + i).setFormula("=Budgets!A" + budgetRow);
-        dash.getRange("B" + i).setFormula("=Budgets!B" + budgetRow).setNumberFormat("$#,##0.00");
-        dash.getRange("C" + i).setFormula("=SUMIFS(Expenses!$B:$B, Expenses!$C:$C, $A" + i + ", Expenses!$H:$H, $B$3)").setNumberFormat("$#,##0.00");
-        dash.getRange("D" + i).setFormula("=B" + i + "-C" + i).setNumberFormat("$#,##0.00");
-        dash.getRange("E" + i).setFormula("=IF(B" + i + ">0, C" + i + "/B" + i + ", 0)").setNumberFormat("0.00%");
+    for (var i = 11; i <= lastTableRow; i++) {
+      var budgetRow = i - 9;
+
+      dash.getRange("A" + i).setFormula("=Budgets!A" + budgetRow);
+
+      dash.getRange("B" + i)
+          .setFormula("=Budgets!B" + budgetRow)
+          .setNumberFormat("₹#,##0.00");
+
+      // Improvement A: TEXT(TODAY(),"yyyy-MM") instead of TEXT($B$3,"yyyy-MM")
+      // so that editing the display cell B3 can never silently break SUMIFS.
+      dash.getRange("C" + i)
+          .setFormula(
+            '=SUMIFS(Expenses!$B:$B,' +
+            'Expenses!$C:$C,$A' + i + ',' +
+            'Expenses!$H:$H,TEXT(TODAY(),"yyyy-MM"))'
+          )
+          .setNumberFormat("₹#,##0.00");
+
+      dash.getRange("D" + i)
+          .setFormula("=B" + i + "-C" + i)
+          .setNumberFormat("₹#,##0.00");
+
+      dash.getRange("E" + i)
+          .setFormula("=IF(B" + i + ">0,C" + i + "/B" + i + ",0)")
+          .setNumberFormat("0.00%");
     }
-    dash.getRange("A11:E18").setBorder(true, true, true, true, true, true, "#E0E0E0", SpreadsheetApp.BorderStyle.SOLID);
 
-    // Conditional formatting: green below threshold, red at or above
-    var threshold =
-        Number(ss.getSheetByName("Settings")
-            .getRange("B2")
-            .getValue()) || 75;
-
-    threshold = threshold / 100;
-
-    var rangeE = dash.getRange("E11:E18");
-
-    var ruleGreen =
-        SpreadsheetApp.newConditionalFormatRule()
-        .whenNumberLessThan(threshold)
-        .setBackground("#D9EAD3")
-        .setFontColor("#274E13")
-        .setRanges([rangeE])
-        .build();
-
-    var ruleRed =
-        SpreadsheetApp.newConditionalFormatRule()
-        .whenNumberGreaterThanOrEqualTo(threshold)
-        .setBackground("#F4CCCC")
-        .setFontColor("#660000")
-        .setRanges([rangeE])
-        .build();
-
-    dash.setConditionalFormatRules([
-        ruleGreen,
-        ruleRed
-    ]);
-
-    // Pivot: Category vs Spent
-    dash.getRange("G10").setFormula("=QUERY(A10:C18, \"select A, C where C > 0 order by A asc\", 1)");
-    dash.getRange("G10:H10").setFontWeight("bold").setBackground("#34A853").setFontColor("#ffffff");
-
-    // Pivot: Monthly Spending vs Budget
-    dash.getRange("J10").setValue("Month");
-    dash.getRange("K10").setValue("Spent");
-    dash.getRange("L10").setValue("Budget");
-
-    dash.getRange("J11").setFormula(
-        "=QUERY(Expenses!A:H,\"select H,sum(B) where H is not null group by H order by H label H '', sum(B) ''\",0)"
+    dash.getRange("A11:E" + lastTableRow).setBorder(
+      true, true, true, true, true, true,
+      "#E0E0E0", SpreadsheetApp.BorderStyle.SOLID
     );
 
-    dash.getRange("L11").setFormula(
-        "=ARRAYFORMULA(IF(J11:J=\"\",\"\",Settings!B1))"
-    );
+    // Conditional formatting over the dynamic E range
+    var threshold = (Number(
+      ss.getSheetByName("Settings").getRange("B2").getValue()
+    ) || 75) / 100;
 
-    dash.getRange("J10:L10").setFontWeight("bold").setBackground("#FBBC04").setFontColor("#ffffff");
+    var rangeE    = dash.getRange("E11:E" + lastTableRow);
+    var ruleGreen = SpreadsheetApp.newConditionalFormatRule()
+      .whenNumberLessThan(threshold)
+      .setBackground("#D9EAD3").setFontColor("#274E13")
+      .setRanges([rangeE]).build();
+    var ruleRed   = SpreadsheetApp.newConditionalFormatRule()
+      .whenNumberGreaterThanOrEqualTo(threshold)
+      .setBackground("#F4CCCC").setFontColor("#660000")
+      .setRanges([rangeE]).build();
+    dash.setConditionalFormatRules([ruleGreen, ruleRed]);
+  }
 
-    dash.getRange("H11:H25").setNumberFormat("$#,##0.00");
-    dash.getRange("J11:J25").setNumberFormat("yyyy-mm");
-    dash.getRange("K11:K25").setNumberFormat("$#,##0.00");
+  // ── Pivot: Category vs Spent (G:H) ───────────────────────────
+  dash.getRange("G10").setFormula(
+    '=QUERY(A10:C' + lastTableRow + ',' +
+    '"select A, C where C > 0 order by A asc",1)'
+  );
+  dash.getRange("G10:H10")
+      .setFontWeight("bold")
+      .setBackground("#34A853")
+      .setFontColor("#ffffff");
 
-    // Remove existing charts before inserting new ones
-    var existingCharts = dash.getCharts();
-    for(var k = 0; k < existingCharts.length; k++) {
-        dash.removeChart(existingCharts[k]);
-    }
+  // ── Pivot: Monthly Spending (J:L) ─────────────────────────────
+  dash.getRange("J10").setValue("Month");
+  dash.getRange("K10").setValue("Spent");
+  dash.getRange("L10").setValue("Budget");
 
-    // 3D Pie Chart — Expenses by Category
+  dash.getRange("J11").setFormula(
+    '=QUERY(Expenses!A:H,' +
+    '"select H, sum(B) where H is not null ' +
+    'group by H order by H ' +
+    'label H \'\', sum(B) \'\'",0)'
+  );
+  dash.getRange("L11").setFormula(
+    '=ARRAYFORMULA(IF(J11:J="","",Settings!B1))'
+  );
+
+  dash.getRange("J10:L10")
+      .setFontWeight("bold")
+      .setBackground("#FBBC04")
+      .setFontColor("#ffffff");
+
+  // ── Compute lastMonthRow for formatting + Combo chart ─────────
+  // Improvement C: scan ceiling = max(dash.getLastRow()+50, expLastRow)
+  // instead of dash.getMaxRows(), avoiding walks over thousands of empty rows.
+  SpreadsheetApp.flush();
+
+  var exp         = ss.getSheetByName("Expenses");
+  var expLastRow  = exp ? exp.getLastRow() : 11;
+  var scanCeiling = Math.max(dash.getLastRow() + 50, expLastRow);
+
+  var fullJData    = dash.getRange("J11:J" + scanCeiling).getValues();
+  var lastMonthRow = 10;
+  for (var j = fullJData.length - 1; j >= 0; j--) {
+    if (fullJData[j][0] !== "") { lastMonthRow = 11 + j; break; }
+  }
+  if (lastMonthRow < 11) lastMonthRow = 11;
+  Logger.log("refreshDashboard: lastMonthRow=" + lastMonthRow +
+             "  (scanCeiling=" + scanCeiling + ")");
+
+  dash.getRange("K11:K" + lastMonthRow).setNumberFormat("₹#,##0.00");
+  dash.getRange("J11:J" + lastMonthRow).setNumberFormat("yyyy-mm");
+
+  // ── Compute lastPieRow for Pie chart ──────────────────────────
+  // Improvement C: same bounded ceiling for G-column scan.
+  SpreadsheetApp.flush();
+
+  var fullGData  = dash.getRange("G11:G" + scanCeiling).getValues();
+  var lastPieRow = 10;
+  for (var g = fullGData.length - 1; g >= 0; g--) {
+    if (fullGData[g][0] !== "") { lastPieRow = 11 + g; break; }
+  }
+  if (lastPieRow < 11) lastPieRow = 11;
+  Logger.log("refreshDashboard: lastPieRow=" + lastPieRow);
+
+  // ── Charts ────────────────────────────────────────────────────
+  var staleCharts = dash.getCharts();
+  for (var k = 0; k < staleCharts.length; k++) { dash.removeChart(staleCharts[k]); }
+
+  if (numCategories > 0) {
     try {
-        var pieChart = dash.newChart()
-            .setChartType(Charts.ChartType.PIE)
-            .addRange(dash.getRange("G10:H18"))
-            .setPosition(20, 1, 0, 0)
-            .setOption("title", "Expenses by Category")
-            .setOption("is3D", true)
-            .build();
-
-        dash.insertChart(pieChart);
-
+      var pieChart = dash.newChart()
+        .setChartType(Charts.ChartType.PIE)
+        .addRange(dash.getRange("G10:H" + lastPieRow))
+        .setPosition(20, 1, 0, 0)
+        .setOption("title", "Expenses by Category")
+        .setOption("is3D", true)
+        .build();
+      dash.insertChart(pieChart);
+      Logger.log("refreshDashboard: Pie chart inserted (G10:H" + lastPieRow + ").");
     } catch (err) {
-        Logger.log("Pie chart generation failed: " + err.message);
+      Logger.log("refreshDashboard: Pie chart failed — " + err.message);
     }
 
-    // Combo Chart — Monthly Spending vs Budget line
     try {
-        var comboChart = dash.newChart()
-            .setChartType(Charts.ChartType.COMBO)
-            .addRange(dash.getRange("J10:L50"))
-            .setPosition(20, 10, 0, 0)
-            .setOption("title", "Monthly Spending vs Budget")
-            .setOption("seriesType", "bars")
-            .setOption("series", {
-                1: {
-                    type: "line"
-                }
-            })
-            .build();
-
-        dash.insertChart(comboChart);
-
+      var budgetChart = dash.newChart()
+        .setChartType(Charts.ChartType.BAR)
+        .addRange(dash.getRange("A10:A" + lastTableRow))
+        .addRange(dash.getRange("B10:B" + lastTableRow))
+        .addRange(dash.getRange("C10:C" + lastTableRow))
+        .setPosition(40, 1, 0, 0)
+        .setOption("title", "Current Month: Budget vs Actual")
+        .setOption("legend", { position: "top" })
+        .setOption("colors", ["#34A853", "#EA4335"])
+        .setOption("hAxis", { title: "Amount" })
+        .build();
+      dash.insertChart(budgetChart);
+      Logger.log("refreshDashboard: Bar chart inserted.");
     } catch (err) {
-        Logger.log("Column chart generation failed: " + err.message);
+      Logger.log("refreshDashboard: Bar chart failed — " + err.message);
     }
+  }
 
-    // Grouped Bar Chart — Current Month: Spend vs Budget by Category
-    try {
-        var budgetChart = dash.newChart()
-            .setChartType(Charts.ChartType.BAR)
-            .addRange(dash.getRange("A10:A18"))  // Category names
-            .addRange(dash.getRange("B10:B18"))  // Budget (Limit)
-            .addRange(dash.getRange("C10:C18"))  // Spent
-            .setPosition(35, 1, 0, 0)
-            .setOption("title", "Current Month: Budget vs Actual")
-            .setOption("legend", { position: "top" })
-            .setOption("colors", ["#34A853", "#EA4335"])
-            .setOption("hAxis", { title: "Amount" })
-            .build();
+  try {
+    var comboChart = dash.newChart()
+      .setChartType(Charts.ChartType.COMBO)
+      .addRange(dash.getRange("J10:L" + lastMonthRow))
+      .setPosition(20, 10, 0, 0)
+      .setOption("title", "Monthly Spending vs Budget")
+      .setOption("seriesType", "bars")
+      .setOption("series", { 1: { type: "line" } })
+      .build();
+    dash.insertChart(comboChart);
+    Logger.log("refreshDashboard: Combo chart inserted (J10:L" + lastMonthRow + ").");
+  } catch (err) {
+    Logger.log("refreshDashboard: Combo chart failed — " + err.message);
+  }
 
-        dash.insertChart(budgetChart);
+  Logger.log("refreshDashboard: Complete.");
+}
 
-    } catch (err) {
-        Logger.log("Budget bar chart generation failed: " + err.message);
+
+// ============================================================
+//  migrateTimestamps
+//  One-time migration: converts string timestamps in Expenses
+//  column A from "yyyy-MM-dd HH:mm:ss" to real Date objects.
+//  Safe to re-run — already-Date rows are skipped.
+// ============================================================
+function migrateTimestamps() {
+  Logger.log("migrateTimestamps: Starting...");
+  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var exp = ss.getSheetByName("Expenses");
+
+  if (!exp) {
+    SpreadsheetApp.getUi().alert("Expenses sheet not found.");
+    return;
+  }
+
+  var lastRow = exp.getLastRow();
+  if (lastRow < 2) {
+    SpreadsheetApp.getUi().alert("No expense rows to migrate.");
+    return;
+  }
+
+  var tsRange  = exp.getRange(2, 1, lastRow - 1, 1);
+  var tsValues = tsRange.getValues();
+  var converted = 0, skipped = 0, failed = 0;
+
+  for (var i = 0; i < tsValues.length; i++) {
+    var cell = tsValues[i][0];
+
+    if (cell instanceof Date && !isNaN(cell.getTime())) { skipped++; continue; }
+
+    if (typeof cell === "string" && cell.trim() !== "") {
+      var str   = cell.trim();
+      var parts = str.split(" ");
+      if (parts.length === 2) {
+        var dateParts = parts[0].split("-");
+        var timeParts = parts[1].split(":");
+        if (dateParts.length === 3 && timeParts.length === 3) {
+          var y   = parseInt(dateParts[0], 10);
+          var mon = parseInt(dateParts[1], 10) - 1;
+          var d   = parseInt(dateParts[2], 10);
+          var h   = parseInt(timeParts[0], 10);
+          var min = parseInt(timeParts[1], 10);
+          var s   = parseInt(timeParts[2], 10);
+          var parsed = new Date(y, mon, d, h, min, s);
+          if (!isNaN(parsed.getTime())) {
+            tsValues[i][0] = parsed;
+            converted++;
+            continue;
+          }
+        }
+      }
+      Logger.log("migrateTimestamps: Row " + (i + 2) + " unparseable: " + cell);
+      failed++;
+    } else {
+      skipped++;
     }
+  }
 
-    Logger.log("setupSheets: Spreadsheet structures initialized successfully.");
+  if (converted > 0) {
+    tsRange.setValues(tsValues);
+    exp.getRange("A:A").setNumberFormat("dd-MM-yyyy HH:mm:ss");
+  }
+
+  Logger.log("migrateTimestamps: converted=" + converted +
+             "  skipped=" + skipped + "  failed=" + failed);
+
+  SpreadsheetApp.getUi().alert(
+    "Timestamp migration complete!\n\n" +
+    "✅ Converted : " + converted + " rows\n" +
+    "⏭  Skipped   : " + skipped + " rows (already Date or empty)\n" +
+    (failed > 0 ? "❌ Failed    : " + failed + " rows (check Logs)\n" : "") +
+    "\nRun ⚙️ Setup Sheets next to rebuild the Dashboard."
+  );
+}
+
+
+// ============================================================
+//  onOpen — menu
+// ============================================================
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("💰 RupiBook")
+    .addItem("⚙️ Setup Sheets",           "setupSheets")
+    .addItem("🔄 Refresh Dashboard only", "refreshDashboard")
+    .addItem("🕐 Migrate Timestamps",     "migrateTimestamps")
+    .addToUi();
 }
 
 /*** Adds a custom menu inside the spreadsheet for manual actions ***/
@@ -1372,10 +1620,7 @@ function searchExpenses(params) {
     var tag = String(params.tag || "").trim().toLowerCase();
     var fromStr = String(params.from || "").trim();
     var toStr = String(params.to || "").trim();
-    var limit = Number(params.limit) || 50;
-
-    var fromDate = fromStr ? new Date(fromStr) : null;
-    var toDate = toStr ? new Date(toStr + "T23:59:59") : null;
+    var limit = Number(params.limit) || 500;
 
     var results = [];
 
@@ -1403,10 +1648,13 @@ function searchExpenses(params) {
             if(tagsLower.indexOf(tag) === -1) continue;
         }
 
-        // Date range filter
+        // Date range filter — compare in IST so early-morning entries (12am–5:30am IST)
+        // are not excluded due to the UTC date being one day earlier than the IST date.
+        // This matches how getDashboardData() filters using the pre-computed Month column.
         var rowDate = (rowTs instanceof Date) ? rowTs : new Date(rowTs);
-        if(fromDate && rowDate < fromDate) continue;
-        if(toDate && rowDate > toDate) continue;
+        var rowDateStr = Utilities.formatDate(rowDate, TIMEZONE, "yyyy-MM-dd");
+        if(fromStr && rowDateStr < fromStr) continue;
+        if(toStr   && rowDateStr > toStr)   continue;
 
         // Free-text search (matches category, source, tags, comments)
         if(q) {

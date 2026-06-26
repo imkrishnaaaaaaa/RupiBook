@@ -1,9 +1,9 @@
 /**
  * analytics.js — Analytics page with server-side search
  *
- * On initial load: fetches filter chip data + last 20 expenses from getAnalyticsData().
- * On search: sends all active filters to the server-side ?action=search endpoint,
- * which returns up to 50 matching expenses (newest first).
+ * On initial load: fetches filter chip data + full current-month expenses via
+ * the search endpoint (so totals match the Dashboard). Limit raised to 200.
+ * On search: sends all active filters to the server-side ?action=search endpoint.
  */
 
 const Analytics = (() => {
@@ -160,7 +160,7 @@ const Analytics = (() => {
       if (filterState.tagSearch)               params.q        = filterState.tagSearch;
       if (filterState.dateFrom)                params.from     = filterState.dateFrom;
       if (filterState.dateTo)                  params.to       = filterState.dateTo;
-      params.limit = 50;
+      params.limit = 250; // higher limit for accurate totals
 
       const results = await API.fetchSearch(params);
       allExpenses = filterBlank(results || []);
@@ -199,7 +199,13 @@ const Analytics = (() => {
         API.fetchAnalytics()
       ]);
 
-      allExpenses = filterBlank(analyticsData.recentExpenses || []);
+      // Use server-side search for the active date range so totals match
+      // the Dashboard (which sums the full month, not just last-20 rows).
+      const searchParams = { limit: 200 };
+      if (filterState.dateFrom) searchParams.from = filterState.dateFrom;
+      if (filterState.dateTo)   searchParams.to   = filterState.dateTo;
+      const searchResults = await API.fetchSearch(searchParams);
+      allExpenses = filterBlank(searchResults || []);
 
       renderFilterChips('anaCategoryChips', filtersData.categories || [], 'categories');
       renderFilterChips('anaSourceChips',   filtersData.sources   || [], 'sources');

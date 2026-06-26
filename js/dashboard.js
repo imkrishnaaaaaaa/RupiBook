@@ -33,11 +33,27 @@ const Dashboard = (() => {
     const pct = dash.budgetPercent || 0;
     const pctClass = pct >= 90 ? 'danger' : pct >= 70 ? 'warning' : 'success';
 
-    el('dTotalSpent').textContent  = fmtMoney(dash.totalSpent);
-    el('dRemaining').textContent   = fmtMoney(Math.max(0, dash.remaining));
-    el('dBudgetPct').textContent   = pct + '%';
-    el('dMonthLabel').textContent  = formatMonth(dash.month);
-    el('dLimitLabel').textContent  = dash.monthlyLimit > 0
+    // Guard every element access — dashboard DOM may not be ready on first load
+    const totalEl = el('dTotalSpent');
+    if (totalEl) totalEl.textContent = fmtMoney(dash.totalSpent);
+
+    const remainingEl = el('dRemaining');
+    if (remainingEl) {
+      remainingEl.textContent = fmtMoney(Math.max(0, dash.remaining));
+      remainingEl.className = 'stat-value ' + pctClass;
+    }
+
+    const pctEl = el('dBudgetPct');
+    if (pctEl) {
+      pctEl.textContent = pct + '%';
+      pctEl.className = 'budget-pct ' + pctClass;
+    }
+
+    const monthEl = el('dMonthLabel');
+    if (monthEl) monthEl.textContent = formatMonth(dash.month);
+
+    const limitEl = el('dLimitLabel');
+    if (limitEl) limitEl.textContent = dash.monthlyLimit > 0
       ? `of ${fmtMoney(dash.monthlyLimit)} limit`
       : 'No limit set';
 
@@ -46,11 +62,6 @@ const Dashboard = (() => {
       fill.style.width = Math.min(pct, 100) + '%';
       fill.className = 'progress-fill ' + (pct >= 90 ? 'danger' : pct >= 70 ? 'warn' : '');
     }
-
-    el('dBudgetPct').className = 'budget-pct ' + pctClass;
-
-    const remaining = el('dRemaining');
-    if (remaining) remaining.className = 'stat-value ' + pctClass;
   }
 
   /* ── Category Pie Chart ── */
@@ -86,6 +97,7 @@ const Dashboard = (() => {
               font: { family: "'Inter', sans-serif", weight: '600', size: 12 },
               padding: 14,
               usePointStyle: true,
+              pointStyle: 'circle',
               pointStyleWidth: 8
             }
           },
@@ -122,7 +134,8 @@ const Dashboard = (() => {
       backgroundColor: PALETTE.slice(0, spendData.length).map(c => c + 'cc'),
       borderRadius: 8,
       borderSkipped: false,
-      order: 2
+      order: 2,
+      type: 'bar'
     }];
 
     // Only add budget line if a budget is set
@@ -132,6 +145,7 @@ const Dashboard = (() => {
         data: budgetData,
         type: 'line',
         borderColor: '#ef4444',
+        backgroundColor: '#ef4444',
         borderWidth: 2,
         borderDash: [8, 4],
         pointRadius: 0,
@@ -170,7 +184,15 @@ const Dashboard = (() => {
               color: chartDefaults().color,
               font: { family: "'Inter', sans-serif", size: 12 },
               usePointStyle: true,
-              pointStyleWidth: 10
+              pointStyle: 'circle',
+              pointStyleWidth: 10,
+              generateLabels(chart) {
+                // Ensure Spending legend item uses a filled circle (not a bar shape)
+                return Chart.defaults.plugins.legend.labels.generateLabels(chart).map(item => {
+                  item.pointStyle = 'circle';
+                  return item;
+                });
+              }
             }
           },
           tooltip: { callbacks: { label: ctx => ' ' + fmtMoney(ctx.raw) } }
