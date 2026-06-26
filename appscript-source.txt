@@ -895,8 +895,7 @@ function setupSheets() {
        .setFontColor("#ffffff");
   }
 
-  // Improvement B: delegate budget sync to shared function
-  syncBudgetCategories();
+  // Improvement B: budget sync is handled in refreshDashboard()
 
   // ── 4. Settings ──────────────────────────────────────────────
   var set = ss.getSheetByName("Settings") || ss.insertSheet("Settings");
@@ -1284,20 +1283,12 @@ function onOpen() {
     .addItem("⚙️ Setup Sheets",           "setupSheets")
     .addItem("🔄 Refresh Dashboard only", "refreshDashboard")
     .addItem("🕐 Migrate Timestamps",     "migrateTimestamps")
+    .addSeparator()
+    .addItem("📅 Log autopay due today",  "logAutopay")
+    .addItem("📊 Send monthly summary now", "sendMonthlySummaryManual")
+    .addItem("🔴 Send overall budget alert now", "sendOverallAlertManual")
+    .addItem("⚡ Run daily trigger",      "dailyTrigger")
     .addToUi();
-}
-
-/*** Adds a custom menu inside the spreadsheet for manual actions ***/
-function onOpen() {
-    SpreadsheetApp.getUi()
-        .createMenu("💰 RupiBook")
-        .addItem("Set up all sheets", "setupSheets")
-        .addItem("Log autopay due today", "logAutopay")
-        .addSeparator()
-        .addItem("📊 Send monthly summary now", "sendMonthlySummaryManual")
-        .addItem("🔴 Send overall budget alert now", "sendOverallAlertManual")
-        .addItem("Run daily trigger", "dailyTrigger")
-        .addToUi();
 }
 
 /*** Manual triggers for menu (use current month) ***/
@@ -1652,7 +1643,15 @@ function searchExpenses(params) {
         // are not excluded due to the UTC date being one day earlier than the IST date.
         // This matches how getDashboardData() filters using the pre-computed Month column.
         var rowDate = (rowTs instanceof Date) ? rowTs : new Date(rowTs);
-        var rowDateStr = Utilities.formatDate(rowDate, TIMEZONE, "yyyy-MM-dd");
+        var rowDateStr = "";
+        if (rowDate && !isNaN(rowDate.getTime())) {
+            rowDateStr = Utilities.formatDate(rowDate, TIMEZONE, "yyyy-MM-dd");
+        } else {
+            var tsStr = String(rowTs || "").trim();
+            if (tsStr.match(/^\d{4}-\d{2}-\d{2}/)) {
+                rowDateStr = tsStr.substring(0, 10);
+            }
+        }
         if(fromStr && rowDateStr < fromStr) continue;
         if(toStr   && rowDateStr > toStr)   continue;
 
