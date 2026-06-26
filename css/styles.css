@@ -1368,3 +1368,79 @@ canvas { display: block; width: 100% !important; }
 .settings-link-title { font-size: 14px; font-weight: 600; }
 .settings-link-sub { font-size: 12px; color: var(--text-3); }
 .settings-link-arrow { font-size: 22px; color: var(--text-3); flex-shrink: 0; }
+
+/* ─────────────────────────────────────────────
+   Category Budget Bars (Dashboard)
+   ───────────────────────────────────────────── */
+.cat-budget-card {
+  padding: 18px;
+  margin-bottom: 14px;
+}
+
+.cat-budget-card-header {
+  margin-bottom: 14px;
+}
+
+.cat-budget-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cat-budget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cat-budget-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cat-budget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cat-budget-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cat-budget-amounts {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.cat-budget-amounts.over {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* Re-uses .progress-track and .progress-fill from the budget section */
+
+.cat-budget-pct-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.cat-budget-pct {
+  font-weight: 600;
+  color: var(--success);
+}
+
+.cat-budget-pct.warn   { color: var(--warning); }
+.cat-budget-pct.danger { color: var(--danger); }
+
+.cat-budget-left {
+  color: var(--text-3);
+  font-weight: 500;
+}

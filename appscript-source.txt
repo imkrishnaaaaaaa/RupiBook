@@ -6,7 +6,23 @@ var CURRENCY = "₹";
 /*** App version — bump this on every deploy.
      The PWA compares this against its own RUPIBOOK_UI_VERSION (in js/version.js).
      If they differ, an "update required" banner is shown to the user. ***/
-var APPSCRIPT_VERSION = "1.2.3";
+var APPSCRIPT_VERSION = "1.2.4";
+
+/*** ───────── COLOR PALETTE (edit here to retheme all sheets at once) ───────── ***/
+var COLOR_WHITE         = "#ffffff"; // header text for all dark-background headers
+var COLOR_BLUE_HEADER   = "#4285F4"; // Expenses header, Dashboard category table header
+var COLOR_GREEN_HEADER  = "#34A853"; // Budgets header, Dashboard pivot table 1 header
+var COLOR_YELLOW_HEADER = "#FBBC04"; // Autopay header, Dashboard pivot table 2 header
+var COLOR_RED_HEADER    = "#EA4335"; // Config header
+var COLOR_PURPLE_HEADER = "#9C27B0"; // PaymentModes header
+var COLOR_DASH_TITLE    = "#1F497D"; // Dashboard title font color
+var COLOR_KPI_BG        = "#F3F3F3"; // KPI label cell background
+var COLOR_BORDER_LIGHT  = "#CCCCCC"; // KPI card outer border
+var COLOR_BORDER_TABLE  = "#E0E0E0"; // Category table inner border
+var COLOR_CF_GREEN_BG   = "#D9EAD3"; // Conditional format — under threshold (background)
+var COLOR_CF_GREEN_FG   = "#274E13"; // Conditional format — under threshold (font)
+var COLOR_CF_RED_BG     = "#F4CCCC"; // Conditional format — over threshold (background)
+var COLOR_CF_RED_FG     = "#660000"; // Conditional format — over threshold (font)
 
 /***
  * ───────── doPost: receives expense data or actions from the PWA / Shortcut ─────────
@@ -44,6 +60,7 @@ function doPost(e) {
         Logger.log("doPost: Appending expense: amount=" + amount + ", category=" + category + ", source=" + source + ", paymentMode=" + paymentMode);
         // Expenses row: Timestamp (Date) | Amount | Category | Source | Payment Mode | Tags | Comments
         sheet.appendRow([now, amount, category, source, paymentMode, tags, comments]);
+        SpreadsheetApp.flush(); // Commit the row before reading it back in checkBudgets
 
         var msg = checkBudgets(ss, month, category);
         return json({
@@ -59,6 +76,21 @@ function doPost(e) {
         });
     } finally {
         lock.releaseLock();
+    }
+}
+
+/*** Generic safe wrapper — calls fn(), returns a JSON error if it throws.
+     Without this, any thrown exception causes Apps Script to return an HTML
+     error page (not JSON), which breaks the frontend's res.json() call. ***/
+function safeGet(fn, arg) {
+    try {
+        if (arg !== undefined) {
+            return json(fn(arg));
+        }
+        return json(fn());
+    } catch(err) {
+        Logger.log("safeGet error [" + fn.name + "]: " + err);
+        return json({ status: "error", message: String(err) });
     }
 }
 
@@ -85,29 +117,12 @@ function doGet(e) {
         });
     }
 
-    if(action === "config") {
-        return json(getConfigData());
-    }
-
-    if(action === "dashboard") {
-        return json(getDashboardData());
-    }
-
-    if(action === "recent") {
-        return json(getRecentExpenses());
-    }
-
-    if(action === "analytics") {
-        return json(getAnalyticsData());
-    }
-
-    if(action === "filters") {
-        return json(getFilterValues());
-    }
-
-    if(action === "search") {
-        return json(searchExpenses(e.parameter));
-    }
+    if(action === "config")    return safeGet(getConfigData);
+    if(action === "dashboard") return safeGet(getDashboardData);
+    if(action === "recent")    return safeGet(getRecentExpenses);
+    if(action === "analytics") return safeGet(getAnalyticsData);
+    if(action === "filters")   return safeGet(getFilterValues);
+    if(action === "search")    return safeGet(searchExpenses, e.parameter);
 
     // Default health check
     return json({
@@ -134,9 +149,9 @@ function checkBudgets(ss, month, category) {
     var totalLimit = 0;
 
     if(settings) {
-        totalLimit = Number(settings.getRange("B1").getValue()) || 0;
-        // Settings!B2 holds the alert threshold as a percentage (e.g. 75 = 75%)
-        var t = Number(settings.getRange("B2").getValue());
+        var settingsVals = settings.getRange("B1:B2").getValues();
+        totalLimit = Number(settingsVals[0][0]) || 0;
+        var t = Number(settingsVals[1][0]);
         if(t > 0) {
             threshold = t / 100;
         }
@@ -304,25 +319,43 @@ function logAutopay() {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var ap = ss.getSheetByName("Autopay");
     var exp = ss.getSheetByName("Expenses");
-    if(!ap) {
-        Logger.log("logAutopay: 'Autopay' sheet not found");
+    if(!ap || !exp) {
+        Logger.log("logAutopay: Required sheets not found");
         return;
     }
     var today = new Date();
     var dayNum = Number(Utilities.formatDate(today, TIMEZONE, "d"));
+    var todayStr = Utilities.formatDate(today, TIMEZONE, "yyyy-MM-dd");
+
+    // Pre-read Expenses once (batch) to check for already-logged autopay items today
+    var expRows = exp.getDataRange().getValues();
     var rows = ap.getDataRange().getValues();
     var autoLoggedCount = 0;
     for(var i = 1; i < rows.length; i++) {
-        var name = rows[i][0],
-            amount = rows[i][1],
-            category = rows[i][2];
-        var day = Number(rows[i][3]),
-            active = rows[i][4];
-        if(active === true && day === dayNum) {
+        var name = String(rows[i][0] || "").trim();
+        var amount = rows[i][1];
+        var category = rows[i][2];
+        var day = Number(rows[i][3]);
+        var active = rows[i][4];
+
+        if(active !== true || day !== dayNum || !name) continue;
+
+        // Deduplication: skip if already logged today for this autopay name
+        var marker = "Auto-logged: " + name;
+        var alreadyLogged = expRows.some(function(r) {
+            var ts = r[0] instanceof Date
+                ? Utilities.formatDate(r[0], TIMEZONE, "yyyy-MM-dd")
+                : String(r[0] || "").slice(0, 10);
+            return ts === todayStr && String(r[6] || "") === marker;
+        });
+
+        if(!alreadyLogged) {
             Logger.log("logAutopay: Auto-logging active expense: '" + name + "', amount=" + amount + ", category=" + category + ", day=" + day);
             // Append with Date object directly, and omit Month since ARRAYFORMULA handles column H
-            exp.appendRow([today, amount, category, name, "Autopay", "autopay", "Auto-logged: " + name]);
+            exp.appendRow([today, amount, category, name, "Autopay", "autopay", marker]);
             autoLoggedCount++;
+        } else {
+            Logger.log("logAutopay: Autopay skipped (already logged today): " + name);
         }
     }
     Logger.log("logAutopay: Finished autopay routine. Auto-logged " + autoLoggedCount + " items.");
@@ -829,8 +862,8 @@ function setupSheets() {
                    "Payment Mode", "Tags", "Comments", "Month"]);
     exp.getRange("1:1")
        .setFontWeight("bold")
-       .setBackground("#4285F4")
-       .setFontColor("#ffffff");
+       .setBackground(COLOR_BLUE_HEADER)
+       .setFontColor(COLOR_WHITE);
     exp.setFrozenRows(1);
   }
 
@@ -878,8 +911,8 @@ function setupSheets() {
     ]);
     config.getRange("1:1")
           .setFontWeight("bold")
-          .setBackground("#EA4335")
-          .setFontColor("#ffffff");
+          .setBackground(COLOR_RED_HEADER)
+          .setFontColor(COLOR_WHITE);
   }
 
   // ── 3. Budgets ───────────────────────────────────────────────
@@ -889,8 +922,8 @@ function setupSheets() {
     bud.appendRow(["Category", "Monthly Limit"]);
     bud.getRange("1:1")
        .setFontWeight("bold")
-       .setBackground("#34A853")
-       .setFontColor("#ffffff");
+       .setBackground(COLOR_GREEN_HEADER)
+       .setFontColor(COLOR_WHITE);
   }
 
   // Improvement B: budget sync is handled in refreshDashboard()
@@ -917,7 +950,7 @@ function setupSheets() {
       ["Claude",     0, "Education",     5, true]
     ]);
     ap.getRange(2, 5, 3, 1).insertCheckboxes();
-    ap.getRange("1:1").setFontWeight("bold").setBackground("#FBBC04");
+    ap.getRange("1:1").setFontWeight("bold").setBackground(COLOR_YELLOW_HEADER);
   }
 
   // ── 6. PaymentModes ──────────────────────────────────────────
@@ -931,8 +964,8 @@ function setupSheets() {
     ]);
     pm.getRange("1:1")
       .setFontWeight("bold")
-      .setBackground("#9C27B0")
-      .setFontColor("#ffffff");
+      .setBackground(COLOR_PURPLE_HEADER)
+      .setFontColor(COLOR_WHITE);
   }
 
   // ── 7. Delegate to refreshDashboard ──────────────────────────
@@ -974,6 +1007,25 @@ function refreshDashboard() {
   ss.setActiveSheet(dash);
   ss.moveActiveSheet(1);
 
+  // Guard: ask before wiping an existing Dashboard
+  if(dash.getLastRow() > 2) {
+      try {
+          var ui = SpreadsheetApp.getUi();
+          var confirmed = ui.alert(
+              "Rebuild Dashboard?",
+              "This will reset the Dashboard tab and remove all existing content. Continue?",
+              ui.ButtonSet.YES_NO
+          );
+          if(confirmed !== ui.Button.YES) {
+              Logger.log("refreshDashboard: Rebuild cancelled by user.");
+              return;
+          }
+      } catch(e) {
+          // getUi() throws when called from a time-based trigger or doGet — proceed silently
+          Logger.log("refreshDashboard: running without UI, rebuilding Dashboard.");
+      }
+  }
+
   dash.clearContents();
   dash.clearFormats();
   dash.clearConditionalFormatRules();
@@ -986,7 +1038,7 @@ function refreshDashboard() {
       .merge()
       .setFontSize(16)
       .setFontWeight("bold")
-      .setFontColor("#1F497D")
+      .setFontColor(COLOR_DASH_TITLE)
       .setVerticalAlignment("middle");
   dash.setRowHeight(1, 40);
 
@@ -1010,10 +1062,10 @@ function refreshDashboard() {
   dash.getRange("A7").setValue("% used");
   dash.getRange("B7").setFormula("=B4/B5").setNumberFormat("0.00%");
 
-  dash.getRange("A3:A7").setFontWeight("bold").setBackground("#F3F3F3");
+  dash.getRange("A3:A7").setFontWeight("bold").setBackground(COLOR_KPI_BG);
   dash.getRange("A3:B7").setBorder(
     true, true, true, true, true, true,
-    "#CCCCCC", SpreadsheetApp.BorderStyle.SOLID
+    COLOR_BORDER_LIGHT, SpreadsheetApp.BorderStyle.SOLID
   );
 
   // ── Category Budget Table ─────────────────────────────────────
@@ -1021,8 +1073,8 @@ function refreshDashboard() {
     dash.getRange("A10:E10")
         .setValues([["Category", "Limit", "Spent", "Remaining", "% Used"]])
         .setFontWeight("bold")
-        .setBackground("#4285F4")
-        .setFontColor("#ffffff")
+        .setBackground(COLOR_BLUE_HEADER)
+        .setFontColor(COLOR_WHITE)
         .setHorizontalAlignment("center");
 
     for (var i = 11; i <= lastTableRow; i++) {
@@ -1055,7 +1107,7 @@ function refreshDashboard() {
 
     dash.getRange("A11:E" + lastTableRow).setBorder(
       true, true, true, true, true, true,
-      "#E0E0E0", SpreadsheetApp.BorderStyle.SOLID
+      COLOR_BORDER_TABLE, SpreadsheetApp.BorderStyle.SOLID
     );
 
     // Conditional formatting over the dynamic E range
@@ -1066,11 +1118,11 @@ function refreshDashboard() {
     var rangeE    = dash.getRange("E11:E" + lastTableRow);
     var ruleGreen = SpreadsheetApp.newConditionalFormatRule()
       .whenNumberLessThan(threshold)
-      .setBackground("#D9EAD3").setFontColor("#274E13")
+      .setBackground(COLOR_CF_GREEN_BG).setFontColor(COLOR_CF_GREEN_FG)
       .setRanges([rangeE]).build();
     var ruleRed   = SpreadsheetApp.newConditionalFormatRule()
       .whenNumberGreaterThanOrEqualTo(threshold)
-      .setBackground("#F4CCCC").setFontColor("#660000")
+      .setBackground(COLOR_CF_RED_BG).setFontColor(COLOR_CF_RED_FG)
       .setRanges([rangeE]).build();
     dash.setConditionalFormatRules([ruleGreen, ruleRed]);
   }
@@ -1082,8 +1134,8 @@ function refreshDashboard() {
   );
   dash.getRange("G10:H10")
       .setFontWeight("bold")
-      .setBackground("#34A853")
-      .setFontColor("#ffffff");
+      .setBackground(COLOR_GREEN_HEADER)
+      .setFontColor(COLOR_WHITE);
 
   // ── Pivot: Monthly Spending (J:L) ─────────────────────────────
   dash.getRange("J10").setValue("Month");
@@ -1102,8 +1154,8 @@ function refreshDashboard() {
 
   dash.getRange("J10:L10")
       .setFontWeight("bold")
-      .setBackground("#FBBC04")
-      .setFontColor("#ffffff");
+      .setBackground(COLOR_YELLOW_HEADER)
+      .setFontColor(COLOR_WHITE);
 
   // ── Compute lastMonthRow for formatting + Combo chart ─────────
   // Improvement C: scan ceiling = max(dash.getLastRow()+50, expLastRow)
@@ -1166,7 +1218,7 @@ function refreshDashboard() {
         .setPosition(40, 1, 0, 0)
         .setOption("title", "Current Month: Budget vs Actual")
         .setOption("legend", { position: "top" })
-        .setOption("colors", ["#34A853", "#EA4335"])
+        .setOption("colors", [COLOR_GREEN_HEADER, COLOR_RED_HEADER])
         .setOption("hAxis", { title: "Amount" })
         .build();
       dash.insertChart(budgetChart);
@@ -1389,6 +1441,7 @@ function getDashboardData() {
     var rows = expenses.getDataRange().getValues();
 
     for(var i = 1; i < rows.length; i++) {
+        if(!rows[i][0] || rows[i][1] === "") continue;
 
         var rowMonth = rows[i][7];
 
@@ -1411,8 +1464,9 @@ function getDashboardData() {
             (categoryTotals[category] || 0) + amount;
     }
 
-    var limit =
-        Number(settings.getRange("B1").getValue()) || 0;
+    var limit = settings
+        ? (Number(settings.getRange("B1").getValue()) || 0)
+        : 0;
 
     // Read category budgets for the dashboard overshoot chart
     var categoryBudgets = {};
@@ -1453,14 +1507,17 @@ function getRecentExpenses() {
     for(
         var i = rows.length - 1; i >= 1 && result.length < 20; i--
     ) {
+        if(!rows[i][0] || rows[i][1] === "") continue; // skip blank rows
         result.push({
-            timestamp: rows[i][0],
-            amount: rows[i][1],
-            category: rows[i][2],
-            source: rows[i][3],
-            paymentMode: rows[i][4],
-            tags: rows[i][5],
-            comments: rows[i][6]
+            timestamp: rows[i][0] instanceof Date
+                ? Utilities.formatDate(rows[i][0], TIMEZONE, "yyyy-MM-dd HH:mm:ss")
+                : String(rows[i][0] || ""),
+            amount:      Number(rows[i][1]) || 0,
+            category:    String(rows[i][2] || ""),
+            source:      String(rows[i][3] || ""),
+            paymentMode: String(rows[i][4] || ""),
+            tags:        String(rows[i][5] || ""),
+            comments:    String(rows[i][6] || "")
         });
     }
 
@@ -1482,6 +1539,7 @@ function getAnalyticsData() {
     var recentExpenses = [];
 
     for(var i = 1; i < rows.length; i++) {
+        if(!rows[i][0] || rows[i][1] === "") continue; // skip blank rows
 
         var amount = Number(rows[i][1]) || 0;
         var category = rows[i][2] || "Others";
@@ -1509,17 +1567,19 @@ function getAnalyticsData() {
     }
 
     for(
-        var j = rows.length - 1; j >= 1 && recentExpenses.length < 20; j--
+        var j = rows.length - 1; j >= 1 && recentExpenses.length < 200; j--
     ) {
-
+        if(!rows[j][0] || rows[j][1] === "") continue; // skip blank rows
         recentExpenses.push({
-            timestamp: rows[j][0],
-            amount: rows[j][1],
-            category: rows[j][2],
-            source: rows[j][3],
-            paymentMode: rows[j][4],
-            tags: rows[j][5],
-            comments: rows[j][6]
+            timestamp: rows[j][0] instanceof Date
+                ? Utilities.formatDate(rows[j][0], TIMEZONE, "yyyy-MM-dd HH:mm:ss")
+                : String(rows[j][0] || ""),
+            amount:      Number(rows[j][1]) || 0,
+            category:    String(rows[j][2] || ""),
+            source:      String(rows[j][3] || ""),
+            paymentMode: String(rows[j][4] || ""),
+            tags:        String(rows[j][5] || ""),
+            comments:    String(rows[j][6] || "")
         });
     }
 

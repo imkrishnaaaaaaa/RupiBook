@@ -127,11 +127,11 @@ const Analytics = (() => {
       <div class="expense-item">
         <div class="expense-icon ${getCatClass(e.category)}">${getCatIcon(e.category)}</div>
         <div class="expense-info">
-          <div class="expense-category">${e.category}
-            ${e.tags ? `<span style="margin-left:6px;font-size:11px;color:var(--primary)">${e.tags}</span>` : ''}
+          <div class="expense-category">${escapeHtml(e.category)}
+            ${e.tags ? `<span style="margin-left:6px;font-size:11px;color:var(--primary)">${escapeHtml(e.tags)}</span>` : ''}
           </div>
-          <div class="expense-source">${e.source || '—'} · ${e.paymentMode || ''}</div>
-          ${e.comments ? `<div class="expense-source" style="font-style:italic">${e.comments}</div>` : ''}
+          <div class="expense-source">${escapeHtml(e.source || '—')} · ${escapeHtml(e.paymentMode || '')}</div>
+          ${e.comments ? `<div class="expense-source" style="font-style:italic">${escapeHtml(e.comments)}</div>` : ''}
         </div>
         <div class="expense-meta">
           <div class="expense-amount">${fmtMoney(e.amount)}</div>

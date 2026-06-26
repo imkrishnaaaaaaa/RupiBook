@@ -16,6 +16,8 @@ Transport notes
 - The Apps Script Web App issues a 302 redirect to a googleusercontent.com URL;
   fetch() follows it (redirect: "follow"). The service worker strips the
   "redirected" flag so Safari does not reject the cached response.
+- Every GET action (except ?action=version) is wrapped in safeGet() server-side,
+  so any exception returns { status: "error", message: "..." } instead of HTML.
 
 
 ─────────────────────────────────────────────────────────────────────────────
@@ -25,7 +27,7 @@ Purpose : Report the deployed script version so the UI can detect a mismatch.
 Request : GET <BASE_URL>?action=version
 Response:
   {
-    "version": "1.1.0"
+    "version": "1.2.4"
   }
 
 

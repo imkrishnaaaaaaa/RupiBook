@@ -127,6 +127,8 @@ function saveActiveProfile(profile) {
  * Called on startup to ensure existing users get the new light default.
  */
 function migrateThemeDefault() {
+    // One-time guard: skip entirely if migration was already applied
+    if (Storage.get('rb_migrated_theme_v2')) return;
     const profiles = getProfiles();
     let changed = false;
     Object.values(profiles).forEach(function(p) {
@@ -136,4 +138,5 @@ function migrateThemeDefault() {
         }
     });
     if (changed) saveProfiles(profiles);
+    Storage.set('rb_migrated_theme_v2', true); // mark done permanently
 }

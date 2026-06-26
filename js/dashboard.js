@@ -328,12 +328,55 @@ const Dashboard = (() => {
     });
   }
 
+  /* ── Per-Category Budget Bars ── */
+  function renderCategoryBudgets(categoryTotals, categoryBudgets) {
+    const container = document.getElementById('dCategoryBudgets');
+    if (!container) return;
+
+    const cats = Object.keys(categoryBudgets);
+    if (!cats.length) {
+      container.innerHTML = '<p style="color:var(--text-3);font-size:13px;text-align:center;padding:8px 0">No category budgets configured in Sheets.</p>';
+      return;
+    }
+
+    // Sort categories: over-budget first, then by % used descending
+    cats.sort((a, b) => {
+      const pctA = categoryBudgets[a] > 0 ? (categoryTotals[a] || 0) / categoryBudgets[a] : 0;
+      const pctB = categoryBudgets[b] > 0 ? (categoryTotals[b] || 0) / categoryBudgets[b] : 0;
+      return pctB - pctA;
+    });
+
+    container.innerHTML = cats.map(cat => {
+      const spent    = Math.round(categoryTotals[cat] || 0);
+      const limit    = Math.round(categoryBudgets[cat] || 0);
+      const pct      = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
+      const over     = spent > limit && limit > 0;
+      const barClass = pct >= 90 ? 'danger' : pct >= 70 ? 'warn' : '';
+
+      return `
+        <div class="cat-budget-row">
+          <div class="cat-budget-header">
+            <span class="cat-budget-name">${getCatIcon(cat)} ${escapeHtml(cat)}</span>
+            <span class="cat-budget-amounts${over ? ' over' : ''}">${fmtMoney(spent)} / ${fmtMoney(limit)}</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill ${barClass}" style="width:${pct}%"></div>
+          </div>
+          <div class="cat-budget-pct-row">
+            <span class="cat-budget-pct ${barClass}">${pct}%${over ? ' over budget' : ''}</span>
+            <span class="cat-budget-left">${over ? '' : fmtMoney(limit - spent) + ' left'}</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
   /* ── Recent Expenses List ── */
   function renderRecent(expenses) {
     const list = document.getElementById('dRecentList');
     if (!list) return;
 
-    const clean = filterExpenses(expenses);
+    // Slice to 20 for the recent list display even though analytics provides up to 200
+    const clean = filterExpenses(expenses).slice(0, 20);
 
     if (!clean.length) {
       list.innerHTML = `
@@ -348,8 +391,8 @@ const Dashboard = (() => {
       <div class="expense-item">
         <div class="expense-icon ${getCatClass(e.category)}">${getCatIcon(e.category)}</div>
         <div class="expense-info">
-          <div class="expense-category">${e.category}</div>
-          <div class="expense-source">${e.source || e.paymentMode || '—'}</div>
+          <div class="expense-category">${escapeHtml(e.category)}</div>
+          <div class="expense-source">${escapeHtml(e.source || e.paymentMode || '—')}</div>
         </div>
         <div class="expense-meta">
           <div class="expense-amount">${fmtMoney(e.amount)}</div>
@@ -371,9 +414,10 @@ const Dashboard = (() => {
   async function load() {
     setLoading(true);
     try {
-      const [dash, recent, analytics] = await Promise.all([
+      // 2 calls instead of 3: analytics.recentExpenses replaces the dedicated
+      // fetchRecent() call, eliminating a redundant full sheet read server-side.
+      const [dash, analytics] = await Promise.all([
         API.fetchDashboard(),
-        API.fetchRecent(),
         API.fetchAnalytics()
       ]);
 
@@ -381,8 +425,10 @@ const Dashboard = (() => {
       renderPieChart(dash.categoryTotals || {});
       renderOvershootChart(dash.categoryTotals || {}, dash.categoryBudgets || {});
       renderTrendChart(analytics.monthlyTrend || {}, analytics.monthlyBudget || dash.monthlyLimit || 0);
+      renderCategoryBudgets(dash.categoryTotals || {}, dash.categoryBudgets || {});
       renderSourcesChart(analytics.sourceBreakdown || {});
-      renderRecent(recent);
+      // Use analytics.recentExpenses for the recent list (sliced to 20 inside renderRecent)
+      renderRecent(analytics.recentExpenses || []);
 
       loaded = true;
     } catch (e) {
@@ -390,7 +436,7 @@ const Dashboard = (() => {
       if (content) content.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">⚠️</div>
-          <p>${e.message}</p>
+          <p>${escapeHtml(e.message)}</p>
         </div>`;
     } finally {
       setLoading(false);
