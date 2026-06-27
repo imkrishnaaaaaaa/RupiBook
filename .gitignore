@@ -1,7 +1,46 @@
-.idea/
+# ── OS generated files ────────────────────────────────────────────────────────
 .DS_Store
-*.log
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── IDE / Editor ──────────────────────────────────────────────────────────────
+# JetBrains (WebStorm / IntelliJ)
+.idea/
+*.iml
+
+# Visual Studio Code
+.vscode/
+
+# Vim / Emacs swap files
+*.swp
+*.swo
+*~
+
+# ── Node / Package managers ───────────────────────────────────────────────────
 node_modules/
-.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# ── Build output ──────────────────────────────────────────────────────────────
 dist/
 build/
+out/
+
+# ── Environment / Secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+
+# ── Miscellaneous ─────────────────────────────────────────────────────────────
+# Empty/stray files created by accidental git commands (e.g. git pull > master)
+master
