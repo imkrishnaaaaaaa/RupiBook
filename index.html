@@ -123,6 +123,11 @@
       <p>Loading dashboard…</p>
     </div>
     <div id="dashContent">
+      <!-- ── Cache Bar ── -->
+      <div class="cache-bar" id="dashCacheBar" style="display:none">
+        <span class="cache-bar-age" id="dashCacheAge">🕐 Updated just now</span>
+        <button class="cache-bar-refresh" id="dashRefreshBtn">🔄 Refresh</button>
+      </div>
       <p class="section-label" id="dMonthLabel">This Month</p>
       <div class="stats-grid">
         <div class="stat-card" style="--stat-color: var(--primary)">
@@ -199,6 +204,11 @@
       <p>Loading analytics…</p>
     </div>
     <div id="anaContent">
+      <!-- ── Cache Bar ── -->
+      <div class="cache-bar" id="anaCacheBar" style="display:none">
+        <span class="cache-bar-age" id="anaCacheAge">🕐 Updated just now</span>
+        <button class="cache-bar-refresh" id="anaForceRefreshBtn">🔄 Refresh</button>
+      </div>
       <div class="analytics-summary">
         <div class="ana-stat">
           <div class="ana-stat-val" id="aTotalSpent">₹0</div>
@@ -439,19 +449,15 @@
   <nav class="bottom-nav" role="navigation" aria-label="Main navigation">
     <button class="nav-btn active" data-page="home" id="navHome" aria-label="Home">
       <span class="nav-icon">🏠</span>
-      <span>Home</span>
     </button>
     <button class="nav-btn" data-page="dashboard" id="navDashboard" aria-label="Dashboard">
       <span class="nav-icon">📊</span>
-      <span>Dashboard</span>
     </button>
     <button class="nav-btn" data-page="analytics" id="navAnalytics" aria-label="Analytics">
       <span class="nav-icon">🔍</span>
-      <span>Analytics</span>
     </button>
     <button class="nav-btn" data-page="settings" id="navSettings" aria-label="Settings">
       <span class="nav-icon">⚙️</span>
-      <span>Settings</span>
     </button>
   </nav>
 

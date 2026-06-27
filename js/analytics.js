@@ -175,6 +175,22 @@ const Analytics = (() => {
     }
   }
 
+  /* ── Cache age bar ── */
+  function updateCacheBar(ageMs) {
+    const bar = document.getElementById('anaCacheBar');
+    const lbl = document.getElementById('anaCacheAge');
+    if (!bar || !lbl) return;
+
+    if (ageMs === null || ageMs < 30_000) {
+      bar.style.display = 'none';
+      return;
+    }
+
+    const mins = Math.round(ageMs / 60_000);
+    lbl.textContent = '🕐 Updated ' + (mins < 1 ? 'just now' : mins + ' min' + (mins === 1 ? '' : 's') + ' ago');
+    bar.style.display = 'flex';
+  }
+
   /* ── Load page ── */
   async function load() {
     const loadingEl = document.getElementById('anaLoadingState');
@@ -194,10 +210,20 @@ const Analytics = (() => {
     }
 
     try {
+      // Snapshot cache ages BEFORE fetching so the bar reflects actual cache hit
+      const filtersAge   = ApiCache.getAge('filters');
+      const analyticsAge = ApiCache.getAge('analytics');
+
       const [filtersData, analyticsData] = await Promise.all([
         API.fetchFilters(),
         API.fetchAnalytics()
       ]);
+
+      // Show cache bar age — use older of the two (if either was a cache hit)
+      const ageMs = (filtersAge !== null && analyticsAge !== null)
+        ? Math.max(filtersAge, analyticsAge)
+        : null;
+      updateCacheBar(ageMs);
 
       // Use server-side search for the active date range so totals match
       // the Dashboard (which sums the full month, not just last-20 rows).
@@ -233,7 +259,7 @@ const Analytics = (() => {
         contentEl.innerHTML = `
           <div class="empty-state">
             <div class="empty-icon">⚠️</div>
-            <p>${e.message}</p>
+            <p>${escapeHtml(e.message)}</p>
           </div>`;
       }
     } finally {
@@ -283,6 +309,12 @@ const Analytics = (() => {
     });
 
     document.getElementById('anaRefreshBtn')?.addEventListener('click', () => load());
+
+    // Force refresh: bust cache then reload
+    document.getElementById('anaForceRefreshBtn')?.addEventListener('click', () => {
+      ApiCache.invalidate('analytics', 'filters');
+      load();
+    });
   }
 
   /* ── Helper ── */

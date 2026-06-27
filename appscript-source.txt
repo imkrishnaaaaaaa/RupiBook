@@ -502,6 +502,13 @@ function catIcon_(cat) {
 function sendMonthlySummary(ss, month) {
     Logger.log("sendMonthlySummary: Preparing monthly digest email for month=" + month);
     var d = getMonthDetails_(ss, month);
+
+    // L-1: skip sending when there is nothing to report
+    if (d.total === 0 && d.txCount === 0) {
+        Logger.log("sendMonthlySummary: Skipping — zero spend for month=" + month);
+        return;
+    }
+
     var settings = ss.getSheetByName("Settings");
     var totalLimit = settings ? (Number(settings.getRange("B1").getValue()) || 0) : 0;
 
@@ -970,7 +977,7 @@ function setupSheets() {
 
   // ── 7. Delegate to refreshDashboard ──────────────────────────
   Logger.log("setupSheets: Delegating to refreshDashboard().");
-  refreshDashboard();
+  refreshDashboard(true); // pass true to skip the confirmation dialog
   Logger.log("setupSheets: Complete.");
 }
 
@@ -982,7 +989,7 @@ function setupSheets() {
 //  Safe to run standalone from the menu — touches no data sheets
 //  other than appending missing Budgets rows.
 // ============================================================
-function refreshDashboard() {
+function refreshDashboard(skipConfirm) {
   Logger.log("refreshDashboard: Starting rebuild...");
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
@@ -1008,7 +1015,8 @@ function refreshDashboard() {
   ss.moveActiveSheet(1);
 
   // Guard: ask before wiping an existing Dashboard
-  if(dash.getLastRow() > 2) {
+  // skipConfirm is set to true when called from setupSheets() — no need to ask again.
+  if(!skipConfirm && dash.getLastRow() > 2) {
       try {
           var ui = SpreadsheetApp.getUi();
           var confirmed = ui.alert(
@@ -1044,9 +1052,17 @@ function refreshDashboard() {
 
   // ── KPI Summary (A3:B7) ───────────────────────────────────────
   dash.getRange("A3").setValue("This month");
+  // M-1: Use TEXT() to output a "yyyy-MM" string so SUMIFS can compare correctly.
+  // The previous EOMONTH formula returned a date serial number (e.g. 46649),
+  // which never matched the "2026-06" strings stored in Expenses column H.
   dash.getRange("B3")
-      .setFormula("=EOMONTH(TODAY(),-1)+1")
-      .setNumberFormat("mmmm yyyy");
+      .setFormula('=TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-MM")')
+      .setNumberFormat("@"); // force plain text so Sheets doesn't re-parse as a date
+
+  // C3: human-readable label for display
+  dash.getRange("C3")
+      .setFormula('=TEXT(EOMONTH(TODAY(),-1)+1,"mmmm yyyy")')
+      .setNumberFormat("@");
 
   dash.getRange("A4").setValue("Total spent");
   dash.getRange("B4")
@@ -1456,7 +1472,7 @@ function getDashboardData() {
         if(String(rowMonth) !== month) continue;
 
         var amount = Number(rows[i][1]) || 0;
-        var category = rows[i][2] || "Others";
+        var category = String(rows[i][2] || "Others").trim(); // trim for consistency with categoryBudgets keys
 
         total += amount;
 
@@ -1611,6 +1627,7 @@ function getFilterValues() {
     var tags = {};
 
     for(var i = 1; i < rows.length; i++) {
+        if(!rows[i][0] || rows[i][1] === "") continue; // skip blank rows
 
         var category = String(rows[i][2] || "").trim();
         var source = String(rows[i][3] || "").trim();
@@ -1720,13 +1737,15 @@ function searchExpenses(params) {
         }
 
         results.push({
-            timestamp: rows[i][0],
-            amount: rows[i][1],
-            category: rowCategory,
-            source: rowSource,
+            timestamp: rows[i][0] instanceof Date
+                ? Utilities.formatDate(rows[i][0], TIMEZONE, "yyyy-MM-dd HH:mm:ss")
+                : String(rows[i][0] || ""),
+            amount:      Number(rows[i][1]) || 0,
+            category:    rowCategory,
+            source:      rowSource,
             paymentMode: String(rows[i][4] || "").trim(),
-            tags: rowTags,
-            comments: rowComments
+            tags:        rowTags,
+            comments:    rowComments
         });
     }
 

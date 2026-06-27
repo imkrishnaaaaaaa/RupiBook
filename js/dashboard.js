@@ -57,6 +57,9 @@ const Dashboard = (() => {
       ? `of ${fmtMoney(dash.monthlyLimit)} limit`
       : 'No limit set';
 
+    const progressMax = el('dProgressMax');
+    if (progressMax) progressMax.textContent = dash.monthlyLimit > 0 ? fmtMoney(dash.monthlyLimit) : '';
+
     const fill = el('dProgressFill');
     if (fill) {
       fill.style.width = Math.min(pct, 100) + '%';
@@ -402,6 +405,23 @@ const Dashboard = (() => {
     `).join('');
   }
 
+  /* ── Cache age bar ── */
+  function updateCacheBar(ageMs) {
+    const bar = document.getElementById('dashCacheBar');
+    const lbl = document.getElementById('dashCacheAge');
+    if (!bar || !lbl) return;
+
+    if (ageMs === null || ageMs < 30_000) {
+      // Fresh fetch — hide the bar
+      bar.style.display = 'none';
+      return;
+    }
+
+    const mins = Math.round(ageMs / 60_000);
+    lbl.textContent = '🕐 Updated ' + (mins < 1 ? 'just now' : mins + ' min' + (mins === 1 ? '' : 's') + ' ago');
+    bar.style.display = 'flex';
+  }
+
   /* ── Loading state ── */
   function setLoading(state) {
     const spinner = document.getElementById('dashLoadingState');
@@ -414,12 +434,20 @@ const Dashboard = (() => {
   async function load() {
     setLoading(true);
     try {
-      // 2 calls instead of 3: analytics.recentExpenses replaces the dedicated
-      // fetchRecent() call, eliminating a redundant full sheet read server-side.
+      // Check if we are serving from cache so we can show the cache bar
+      const dashAge     = ApiCache.getAge('dashboard');
+      const analyticsAge = ApiCache.getAge('analytics');
+
       const [dash, analytics] = await Promise.all([
         API.fetchDashboard(),
         API.fetchAnalytics()
       ]);
+
+      // Use the older of the two ages (both must be fresh for the bar to be hidden)
+      const ageMs = (dashAge !== null && analyticsAge !== null)
+        ? Math.max(dashAge, analyticsAge)
+        : null;
+      updateCacheBar(ageMs);
 
       renderStats(dash);
       renderPieChart(dash.categoryTotals || {});
@@ -427,7 +455,6 @@ const Dashboard = (() => {
       renderTrendChart(analytics.monthlyTrend || {}, analytics.monthlyBudget || dash.monthlyLimit || 0);
       renderCategoryBudgets(dash.categoryTotals || {}, dash.categoryBudgets || {});
       renderSourcesChart(analytics.sourceBreakdown || {});
-      // Use analytics.recentExpenses for the recent list (sliced to 20 inside renderRecent)
       renderRecent(analytics.recentExpenses || []);
 
       loaded = true;
@@ -442,6 +469,14 @@ const Dashboard = (() => {
       setLoading(false);
     }
   }
+
+  /* ── Wire refresh button ── */
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('dashRefreshBtn')?.addEventListener('click', () => {
+      ApiCache.invalidate('dashboard', 'analytics');
+      load();
+    });
+  });
 
   /* ── Helpers ── */
   function el(id) { return document.getElementById(id); }
