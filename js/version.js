@@ -13,14 +13,14 @@
  */
 
 /* ─── Version constant (bump on every release, keep in sync with appscript-source.txt) ─── */
-const RUPIBOOK_UI_VERSION = "1.2.4";
+const RUPIBOOK_UI_VERSION = "1.3.1";
 
 /* ─── Tunables ─── */
 const VERSION_CACHE_KEY = "rb_versionCache";        // { version, ts }
 const VERSION_CACHE_TTL = 6 * 60 * 60 * 1000;       // 6 hours
 const APPSCRIPT_SRC_URL = "./appscript-source.txt";
-const SETUP_GUIDE_URL   = "./docs/SETUP_GUIDE.md";
-const DOCS_URL          = SETUP_GUIDE_URL;          // exposed for the banner link
+const SETUP_GUIDE_URL = "./docs/SETUP_GUIDE.md";
+const DOCS_URL = SETUP_GUIDE_URL;          // exposed for the banner link
 
 /* ════════════════════════════════════════════
    Clipboard helper (with execCommand fallback)
@@ -119,8 +119,8 @@ function renderMarkdown(src) {
   let listType = null;      // 'ul' | 'ol'
   let inQuote = false;
 
-  const closeList  = () => { if (listType) { out.push(`</${listType}>`); listType = null; } };
-  const closeQuote = () => { if (inQuote)  { out.push('</blockquote>'); inQuote = false; } };
+  const closeList = () => { if (listType) { out.push(`</${listType}>`); listType = null; } };
+  const closeQuote = () => { if (inQuote) { out.push('</blockquote>'); inQuote = false; } };
 
   for (const raw of lines) {
     const line = raw.replace(/\s+$/, '');
@@ -189,7 +189,7 @@ function renderMarkdown(src) {
 ════════════════════════════════════════════ */
 const VersionCheck = {
   _dismissed: false,   // dismissed for this app load (resets on reload)
-  _checking:  false,   // guards against overlapping forced checks
+  _checking: false,   // guards against overlapping forced checks
 
   /**
    * Read the deployed version, honouring the 6h TTL cache unless forced.
@@ -202,7 +202,7 @@ const VersionCheck = {
     if (!force) {
       const cached = Storage.get(VERSION_CACHE_KEY);
       if (cached && cached.version && cached.ts &&
-          (Date.now() - cached.ts) < VERSION_CACHE_TTL) {
+        (Date.now() - cached.ts) < VERSION_CACHE_TTL) {
         return cached.version;
       }
     }
@@ -236,14 +236,18 @@ const VersionCheck = {
       if (deployed === RUPIBOOK_UI_VERSION) {
         this.hideBanner();
         if (force) {
-          showToast({ icon: '✅', title: 'Up to date',
-            message: `Your AppScript is on v${deployed}.` });
+          showToast({
+            icon: '✅', title: 'Up to date',
+            message: `Your AppScript is on v${deployed}.`
+          });
         }
       } else {
         this.showMismatchBanner(deployed);
         if (force) {
-          showToast({ icon: '⚠️', title: 'Still outdated',
-            message: `Deployed v${deployed}, but v${RUPIBOOK_UI_VERSION} is required.` });
+          showToast({
+            icon: '⚠️', title: 'Still outdated',
+            message: `Deployed v${deployed}, but v${RUPIBOOK_UI_VERSION} is required.`
+          });
         }
       }
     } catch (err) {

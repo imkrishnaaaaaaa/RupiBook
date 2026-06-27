@@ -3,7 +3,7 @@
  * Strategy: Cache-first for static assets, Network-first for API calls.
  */
 
-const CACHE_NAME   = 'rupibook-1.2.3';
+const CACHE_NAME = 'rupibook-1.3.1';
 const API_HOSTNAME = 'script.google.com';
 
 const STATIC_ASSETS = [
