@@ -27,7 +27,7 @@ Purpose : Report the deployed script version so the UI can detect a mismatch.
 Request : GET <BASE_URL>?action=version
 Response:
   {
-    "version": "1.2.4"
+    "version": "1.2.3"
   }
 
 

@@ -32,7 +32,7 @@ Google Apps Script is a free tool by Google that lets you add custom backend log
 
 ## Step 3 — Run the Setup Function
 
-This step creates all the required sheets inside your spreadsheet.
+This step creates all the required sheets inside your spreadsheet and formats them.
 
 1. In the Apps Script editor, find the **function dropdown** near the top toolbar (it might say `myFunction` or `doPost`).
 2. Click the dropdown and select **`setupSheets`**.
@@ -45,6 +45,8 @@ This step creates all the required sheets inside your spreadsheet.
 5. Wait a few seconds. Go back to your spreadsheet tab.
 
 You should now see these tabs at the bottom: **Dashboard**, **Expenses**, **Budgets**, **Settings**, **Autopay**, **Config**, **PaymentModes**.
+
+> **Important:** `setupSheets` is a one-time setup function. Re-running it will overwrite your sheet headers and formatting. It will not delete your existing expense data rows, but avoid running it again unless you are resetting a fresh sheet.
 
 ---
 
@@ -65,7 +67,7 @@ Deploying creates a URL that RupiBook uses to talk to your Google Sheet.
    ```
 6. **Copy this URL.** You'll need it in the next step.
 
-> **Quick test:** Paste the URL in any browser. You should see `{"status":"ok","message":"RupiBook API Running",...}`. If you do, the backend is working.
+> **Quick test:** Paste the URL in any browser. You should see `{"status":"ok","message":"RupiBook API Running","version":"1.3.1"}`. If you do, the backend is working.
 
 ---
 
@@ -95,7 +97,7 @@ After installing:
 
 Done. Double-tap the back of your phone → the logging flow starts.
 
-> Requires iPhone 8 or newer. A thick phone case can dampen the tap — try Triple Tap if Double Tap is unreliable.
+> Requires iPhone 8 or newer running iOS 14+. A thick phone case can dampen the tap — try Triple Tap if Double Tap is unreliable.
 
 ---
 
@@ -125,7 +127,7 @@ After editing, go to **Settings → ↻ Refresh from Sheets** in the app.
 |----------|----------|
 | Category name | Monthly limit in ₹ |
 
-When your spending in a category crosses the alert threshold (set in `Settings!B2`, default 75%), you'll get a warning notification.
+When your spending in a category crosses the alert threshold (configured in `Settings!B2`, default 80%), you'll get a warning notification. If a budget is fully exceeded (100%), an email alert is also sent — once per event, then every 10 days with updated status.
 
 ### Autopay → `Autopay` sheet
 
@@ -134,9 +136,11 @@ When your spending in a category crosses the alert threshold (set in `Settings!B
 | Netflix | 199 | Entertainment | 1 | ✅ |
 | Rent | 12000 | Bills | 1 | ✅ |
 
-Items with **Active** checked are auto-logged on their specified day each month. Untick to pause.
+Items with **Active** checked are auto-logged on their specified day each month. Untick to pause. Autopay includes built-in duplicate detection — if a subscription has already been logged for the current month, it will not be logged again even if the trigger fires multiple times.
 
-> To enable autopay, set up a daily trigger in Apps Script: **⏰ Triggers → + Add Trigger → Function: `logAutopay` → Time-driven → Day timer → Pick a time → Save**.
+> To enable autopay and automated emails, set up a daily trigger in Apps Script: **⏰ Triggers → + Add Trigger → Function: `dailyTrigger` → Time-driven → Day timer → Pick a time → Save**.
+>
+> `dailyTrigger` handles both autopay logging and the first-of-month email summary in a single scheduled run.
 
 ---
 
@@ -165,6 +169,15 @@ When a new version of RupiBook is released, you may see an **"AppScript Update R
 **Budget alerts not working?**
 - Category names in the `Budgets` sheet must match exactly (they are case-sensitive).
 - Make sure `Settings!B1` contains a number (your overall monthly limit).
+- Check that `Settings!B2` has your threshold percentage (e.g. `80` for 80%). If blank, the default 80% is used.
+
+**Budget emails not arriving?**
+- Confirm a time-driven trigger exists for `dailyTrigger` in Apps Script → ⏰ Triggers.
+- Check **Apps Script → Executions** for any errors on recent runs.
+- Duplicate-prevention is built in: alerts only re-send every 10 days. To reset, go to **Apps Script → Project Settings → Script Properties** and delete keys prefixed with `alert_`.
+
+**Autopay logged twice?**
+- Built-in deduplication prevents this in v1.3.1+. If you still see a duplicate, manually delete the extra row from the `Expenses` sheet, or use **Undo** from the app.
 
 **"Failed to fetch" errors?**
 - If you're running RupiBook from a local file (`file://`), browsers block network requests. Serve it via HTTP instead:
@@ -176,20 +189,24 @@ When a new version of RupiBook is released, you may see an **"AppScript Update R
 **Shortcut not working?**
 - Run the shortcut once manually from the Shortcuts app to grant network permissions.
 - Ensure the Web App URL inside the shortcut is correct and up to date.
+- After updating the AppScript code, always deploy as a **New version** — the URL stays the same but Apps Script must be re-versioned to serve the latest code.
 
 **Wrong time on logged expenses?**
 - The `TIMEZONE` variable at the top of the Apps Script defaults to `Asia/Kolkata`. Change it to your timezone and re-deploy.
+
+**Dashboard shows stale data?**
+- The dashboard reads directly from your live sheet. If it looks outdated, try refreshing the app. If you ran `refreshDashboard` from the Apps Script editor, it will prompt for confirmation first — this is expected behaviour.
 
 ---
 
 ## Sheet Reference
 
-| Sheet | Purpose |
-|-------|---------|
-| **Dashboard** | Auto-generated summary with charts and budget table |
-| **Expenses** | Every logged transaction |
-| **Budgets** | Per-category monthly spending limits |
-| **Settings** | Overall monthly limit (`B1`) and alert threshold % (`B2`) |
-| **Autopay** | Recurring bills — auto-logged on their due day |
-| **Config** | Category → Source mapping (drives app dropdowns) |
-| **PaymentModes** | Available payment method options |
+| Sheet | Purpose | Key Columns |
+|-------|---------|-------------|
+| **Dashboard** | Auto-generated summary with KPI cards, budget table, pie chart, column chart | Formulas linked to all other sheets |
+| **Expenses** | Every logged transaction | Timestamp · Amount · Category · Source · Payment Mode · Tags · Comments · Month |
+| **Budgets** | Per-category monthly spending limits | Category (A) · Monthly Limit ₹ (B) |
+| **Settings** | Global configuration | Monthly Total Limit (`B1`) · Alert Threshold % (`B2`) |
+| **Autopay** | Recurring bills auto-logged on their due day | Name · Amount · Category · Day of Month · Active (checkbox) |
+| **Config** | Category-to-Source mapping (drives the dropdowns in the app) | Category (A) · Source (B) |
+| **PaymentModes** | Available payment method options | Payment Mode (A) |

@@ -14,6 +14,7 @@
 </p>
 
 <p>
+<img src="https://img.shields.io/badge/Version-1.3.1-6366f1?style=flat-square" alt="Version">
 <img src="https://img.shields.io/badge/PWA-Installable-6366f1?style=flat-square&logo=pwa&logoColor=white" alt="PWA">
 <img src="https://img.shields.io/badge/Google_Sheets-Backend-34A853?style=flat-square&logo=google-sheets&logoColor=white" alt="Google Sheets">
 <img src="https://img.shields.io/badge/Apps_Script-Serverless-4285F4?style=flat-square&logo=google&logoColor=white" alt="Apps Script">
@@ -60,6 +61,7 @@ Most expense trackers want your data on their servers, behind a paywall, and loc
 │  │  • ?action=dashboard (summary)   │  │
 │  │  • ?action=analytics (charts)    │  │
 │  │  • ?action=version (sync check)  │  │
+│  │  • ?action=search  (server-side) │  │
 │  └──────────────────────────────────┘  │
 └────────────────┬───────────────────────┘
                  │ Read / Write
@@ -115,13 +117,14 @@ Most expense trackers want your data on their servers, behind a paywall, and loc
 ### Budget Alerts
 - Set per-category limits in the `Budgets` sheet (e.g., Food = ₹2,000/month)
 - Set an overall monthly limit in the `Settings` sheet
-- Configurable threshold (default 75%) — get warned before you overspend
+- Configurable threshold (default 80%) — get warned before you overspend
 - Alerts delivered as push notifications when logging an expense
 
 ### Autopay Tracking
 - Define recurring bills in the `Autopay` sheet (name, amount, category, day-of-month)
 - Checkbox toggle to pause/resume
 - Daily trigger auto-logs due items as normal expenses — they flow into budgets and charts
+- **Duplicate-safe**: built-in deduplication ensures each recurring item is logged only once per month, even if the trigger fires multiple times
 
 ### Email Notifications
 
@@ -144,9 +147,9 @@ Three types of automated emails, each with distinct subject patterns for easy Gm
 **Budget Alerts** include:
 - Category-specific: top sources, highest single expense, recent transactions in that category
 - Overall: all categories listed, categories over budget highlighted, remaining days in month
-- Duplicate prevention: alerts are sent once per event, then re-sent every 10 days with updated status
+- Duplicate prevention: alerts are sent once per event, then re-sent every 10 days with updated status. To reset, delete `alert_*` keys from Apps Script → Project Settings → Script Properties.
 
-**Setup**: Create a daily time-driven trigger for `dailyTrigger` in Apps Script. Budget alerts are also triggered automatically when logging expenses.
+**Setup**: Create a daily time-driven trigger for `dailyTrigger` in Apps Script. `dailyTrigger` runs autopay logging and the monthly email summary in one scheduled execution. Budget alerts are also triggered inline when logging any expense.
 
 **Gmail Filtering**: All subjects start with `[RupiBook]` — create a Gmail filter for `subject:[RupiBook]` to label/organize these emails. Use the emoji prefix (`📊`, `🚨`, `🔴`) to further differentiate.
 
@@ -228,6 +231,8 @@ The Apps Script Web App exposes these endpoints. All requests go to your deploye
 
 ### GET Endpoints
 
+All GET routes are wrapped in a `safeGet` handler. Any unexpected exception returns a JSON `{ status: "error", message: "..." }` instead of an HTML error page.
+
 | Parameter | Response | Description |
 |-----------|----------|-------------|
 | *(none)* | `{ status, message, version }` | Health check — confirms the API is running |
@@ -235,14 +240,15 @@ The Apps Script Web App exposes these endpoints. All requests go to your deploye
 | `?action=config` | `{ categories, mapping, paymentModes }` | Category → Source mapping and payment modes |
 | `?action=dashboard` | `{ month, totalSpent, monthlyLimit, remaining, budgetPercent, categoryTotals, categoryBudgets }` | Current month summary + per-category budget limits |
 | `?action=recent` | `[{ timestamp, amount, category, source, paymentMode, tags, comments }]` | Last 20 expenses |
-| `?action=analytics` | `{ categoryBreakdown, sourceBreakdown, monthlyTrend, recentExpenses, monthlyBudget }` | Full analytics data + monthly budget |
+| `?action=analytics` | `{ categoryBreakdown, sourceBreakdown, monthlyTrend, recentExpenses, monthlyBudget }` | Full analytics data (up to 200 recent expenses) + monthly budget |
 | `?action=filters` | `{ categories, sources, tags }` | Distinct filter values from expense history |
+| `?action=search` | `[{ timestamp, amount, category, source, paymentMode, tags, comments }]` | Server-side filtered search (max 50 results). Accepts `query`, `category`, `source`, `tag`, `from`, `to` params. |
 
 ### POST Endpoints
 
 | Payload | Response | Description |
 |---------|----------|-------------|
-| `{ amount, category, source, paymentMode, tags, comments }` | `{ status, message }` | Log a new expense. Message contains budget alert if threshold is crossed. |
+| `{ amount, category, source, paymentMode, tags, comments }` | `{ status, message }` | Log a new expense. Uses `SpreadsheetApp.flush()` before budget check to ensure the new row is committed. Message contains budget alert if threshold is crossed. |
 | `{ action: "undo" }` | `{ status, message }` | Remove the last logged expense row |
 
 ---
@@ -349,14 +355,16 @@ When a new RupiBook version requires a backend update, the app shows an **"AppSc
 | Symptom | Fix |
 |---------|-----|
 | Categories not loading | Verify the Web App URL is saved correctly in Settings. Ensure access is set to **Anyone**. |
-| Budget alerts never fire | Check that category names in the `Budgets` sheet match exactly (case-sensitive). Verify `Settings!B1` has a number. |
+| Budget alerts never fire | Check that category names in the `Budgets` sheet match exactly (case-sensitive). Verify `Settings!B1` has a number. `Settings!B2` sets the threshold (default 80 for 80%). |
 | `Failed to fetch` errors | If running locally as a file, serve via HTTP: `python3 -m http.server 8080`. |
+| API returns an HTML error page | Update to v1.3.1+. All `doGet` routes now use a `safeGet` wrapper that always returns JSON. |
 | Wrong timestamp on entries | Update `TIMEZONE` at the top of the Apps Script (`Asia/Kolkata` by default), then re-deploy. |
 | Shortcut runs but no row appears | The URL in the Shortcut is wrong or outdated. Re-copy from **Deploy → Manage deployments**. After editing code, always deploy as a **New version**. |
 | Back Tap not triggering | Requires iPhone 8+ / iOS 14+. Thick cases can block it — try Triple Tap or a thinner case. |
-| Autopay / emails didn't run | Open Apps Script → ⏰ Triggers and confirm the trigger for `dailyTrigger` exists. Check **Executions** for errors. |
+| Autopay / emails didn't run | Open Apps Script → ⏰ Triggers and confirm a trigger for `dailyTrigger` exists. Check **Executions** for errors. |
+| Autopay logged twice | Built-in deduplication (v1.3.1+) prevents this. If a duplicate appears, delete the extra row from `Expenses` or use the Undo action. |
 | Email shows wrong data | Ensure the `Month` column (H) in the Expenses sheet contains `yyyy-MM` formatted text, not dates. Re-run `setupSheets()` if needed. |
-| Duplicate budget alert emails | Alerts use PropertiesService for dedup. To reset, go to Apps Script → Project Settings → Script Properties and delete keys starting with `alert_`. |
+| Duplicate budget alert emails | Alerts use PropertiesService for dedup — re-sent at most every 10 days. To reset, go to Apps Script → Project Settings → Script Properties and delete keys starting with `alert_`. |
 
 ---
 
