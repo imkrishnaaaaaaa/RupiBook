@@ -176,6 +176,14 @@ const Analytics = (() => {
   }
 
   /* ── Cache age bar ── */
+  function fmtAge(ms) {
+    const mins = Math.round(ms / 60_000);
+    if (mins < 1)  return 'just now';
+    if (mins < 60) return mins + ' min' + (mins === 1 ? '' : 's') + ' ago';
+    const hrs = Math.round(mins / 60);
+    return hrs + ' hr' + (hrs === 1 ? '' : 's') + ' ago';
+  }
+
   function updateCacheBar(ageMs) {
     const bar = document.getElementById('anaCacheBar');
     const lbl = document.getElementById('anaCacheAge');
@@ -186,8 +194,7 @@ const Analytics = (() => {
       return;
     }
 
-    const mins = Math.round(ageMs / 60_000);
-    lbl.textContent = '🕐 Updated ' + (mins < 1 ? 'just now' : mins + ' min' + (mins === 1 ? '' : 's') + ' ago');
+    lbl.textContent = '🕐 Updated ' + fmtAge(ageMs);
     bar.style.display = 'flex';
   }
 
@@ -196,7 +203,12 @@ const Analytics = (() => {
     const loadingEl = document.getElementById('anaLoadingState');
     const contentEl = document.getElementById('anaContent');
     if (loadingEl) loadingEl.style.display = 'flex';
-    if (contentEl) contentEl.style.display = 'none';
+    // Use visibility instead of display so the content area keeps its height
+    // during loading — prevents the nav bar from jumping up and back down.
+    if (contentEl) {
+      contentEl.style.visibility    = 'hidden';
+      contentEl.style.pointerEvents = 'none';
+    }
 
     // Apply current-month default if no date range is set
     if (!filterState.dateFrom && !filterState.dateTo) {
@@ -219,9 +231,10 @@ const Analytics = (() => {
         API.fetchAnalytics()
       ]);
 
-      // Show cache bar age — use older of the two (if either was a cache hit)
-      const ageMs = (filtersAge !== null && analyticsAge !== null)
-        ? Math.max(filtersAge, analyticsAge)
+      // Show cache bar — use the older of the two ages.
+      // Use OR: show bar if EITHER was served from cache (not just when both are).
+      const ageMs = (filtersAge !== null || analyticsAge !== null)
+        ? Math.max(filtersAge ?? 0, analyticsAge ?? 0)
         : null;
       updateCacheBar(ageMs);
 
@@ -252,10 +265,14 @@ const Analytics = (() => {
 
       renderResults();
 
-      if (contentEl) contentEl.style.display = 'block';
+      if (contentEl) {
+        contentEl.style.visibility    = 'visible';
+        contentEl.style.pointerEvents = '';
+      }
     } catch (e) {
       if (contentEl) {
-        contentEl.style.display = 'block';
+        contentEl.style.visibility    = 'visible';
+        contentEl.style.pointerEvents = '';
         contentEl.innerHTML = `
           <div class="empty-state">
             <div class="empty-icon">⚠️</div>
@@ -266,6 +283,7 @@ const Analytics = (() => {
       if (loadingEl) loadingEl.style.display = 'none';
     }
   }
+
 
   /* ── Wire up filter controls ── */
   function bindControls() {

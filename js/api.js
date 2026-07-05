@@ -86,10 +86,10 @@ const ApiCache = (() => {
 ═══════════════════════════════════════════ */
 const API = (() => {
 
-  const DASHBOARD_TTL = 60 * 60 * 1000;   // 60 minutes
-  const ANALYTICS_TTL = 60 * 60 * 1000;   // 60 minutes
-  const FILTERS_TTL   = 60 * 60 * 1000;   // 60 minutes
-  const CONFIG_TTL    = 24 * 60 * 60 * 1000; // 24 hours
+  const DASHBOARD_TTL = 6 * 60 * 60 * 1000;   // 6 hours
+  const ANALYTICS_TTL = 6 * 60 * 60 * 1000;   // 6 hours
+  const FILTERS_TTL   = 6 * 60 * 60 * 1000;   // 6 hours
+  const CONFIG_TTL    = 24 * 60 * 60 * 1000;   // 24 hours
 
   function getUrl() {
     const profile = getActiveProfile();

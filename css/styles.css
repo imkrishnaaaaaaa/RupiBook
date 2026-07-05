@@ -1941,3 +1941,13 @@ canvas {
 .cache-bar-refresh:active {
   transform: scale(0.93);
 }
+
+/* ─────────────────────────────────────────────
+   Layout-stability: prevent nav jump during page load
+   Using visibility:hidden keeps the block in flow so the
+   page height doesn't collapse and the nav bar stays fixed.
+   ───────────────────────────────────────────── */
+#dashContent,
+#anaContent {
+  min-height: 60vh;
+}
