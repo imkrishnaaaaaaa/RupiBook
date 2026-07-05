@@ -406,19 +406,25 @@ const Dashboard = (() => {
   }
 
   /* ── Cache age bar ── */
+  function fmtAge(ms) {
+    const mins = Math.round(ms / 60_000);
+    if (mins < 1)  return 'just now';
+    if (mins < 60) return mins + ' min' + (mins === 1 ? '' : 's') + ' ago';
+    const hrs = Math.round(mins / 60);
+    return hrs + ' hr' + (hrs === 1 ? '' : 's') + ' ago';
+  }
+
   function updateCacheBar(ageMs) {
     const bar = document.getElementById('dashCacheBar');
     const lbl = document.getElementById('dashCacheAge');
     if (!bar || !lbl) return;
 
     if (ageMs === null || ageMs < 30_000) {
-      // Fresh fetch — hide the bar
       bar.style.display = 'none';
       return;
     }
 
-    const mins = Math.round(ageMs / 60_000);
-    lbl.textContent = '🕐 Updated ' + (mins < 1 ? 'just now' : mins + ' min' + (mins === 1 ? '' : 's') + ' ago');
+    lbl.textContent = '🕐 Updated ' + fmtAge(ageMs);
     bar.style.display = 'flex';
   }
 
@@ -427,7 +433,12 @@ const Dashboard = (() => {
     const spinner = document.getElementById('dashLoadingState');
     const content = document.getElementById('dashContent');
     if (spinner) spinner.style.display = state ? 'flex' : 'none';
-    if (content) content.style.display = state ? 'none' : 'block';
+    // Use visibility instead of display so the content area keeps its height
+    // during loading — prevents the nav bar from jumping up and back down.
+    if (content) {
+      content.style.visibility    = state ? 'hidden' : 'visible';
+      content.style.pointerEvents = state ? 'none'   : '';
+    }
   }
 
   /* ── Public load ── */

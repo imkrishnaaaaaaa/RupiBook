@@ -44,3 +44,4 @@ out/
 # ── Miscellaneous ─────────────────────────────────────────────────────────────
 # Empty/stray files created by accidental git commands (e.g. git pull > master)
 master
+.DS_Store
