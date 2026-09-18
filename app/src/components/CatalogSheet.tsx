@@ -5,9 +5,10 @@ import Button from './ui/Button'
 import { toast } from './ui/Toast'
 import {
   useAddCategory, useAddMode, useAddSource,
-  useCatalog, useDeleteCategory, useDeleteMode, useDeleteSource,
+  useCatalog, useDeleteCategory, useDeleteMode, useDeleteSource, useReassignSource,
   useReorderCategories,
 } from '@/hooks/data'
+import type { Source } from '@/lib/types'
 
 /**
  * Categories / sources / payment modes manager.
@@ -21,6 +22,7 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
   const reorderCats = useReorderCategories(bookId)
   const addSrc = useAddSource(bookId)
   const delSrc = useDeleteSource(bookId)
+  const reassignSrc = useReassignSource(bookId)
   const addMode = useAddMode(bookId)
   const delMode = useDeleteMode(bookId)
 
@@ -29,6 +31,15 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
   const [srcCat, setSrcCat] = useState('')
   const [modeName, setModeName] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [reassignSource, setReassignSource] = useState<Source | null>(null)
+  const [reassignTarget, setReassignTarget] = useState('')
+
+  function isForeignKeyError(e: unknown): boolean {
+    const msg = e && typeof e === 'object' && 'message' in e
+      ? String((e as { message: unknown }).message)
+      : e instanceof Error ? e.message : String(e)
+    return msg.includes('foreign key')
+  }
 
   function fail(e: unknown) {
     // Supabase errors are objects with message, code, details, hint
@@ -42,6 +53,28 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
     } else {
       toast({ tone: 'error', title: 'Failed', message: msg })
     }
+  }
+
+  function deleteSource(s: Source) {
+    delSrc.mutate(s.id, {
+      onError: e => { if (isForeignKeyError(e)) { setReassignTarget(''); setReassignSource(s) } else fail(e) },
+    })
+  }
+
+  function confirmReassignAndDelete() {
+    if (!reassignSource) return
+    reassignSrc.mutate(
+      { fromSourceId: reassignSource.id, toSourceId: reassignTarget || null },
+      {
+        onSuccess: () => {
+          delSrc.mutate(reassignSource.id, {
+            onSuccess: () => { toast({ tone: 'success', title: 'Source deleted' }); setReassignSource(null) },
+            onError: fail,
+          })
+        },
+        onError: fail,
+      },
+    )
   }
 
   /** Persist new category order after drag-and-drop. */
@@ -151,12 +184,38 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
                     · {catalog.categories.find(c => c.id === s.category_id)?.name ?? 'any'}
                   </span>
                 </span>
-                <button aria-label={`Delete ${s.name}`} onClick={() => delSrc.mutate(s.id, { onError: fail })} className="tap-none p-0.5 text-text-3 hover:text-danger">
+                <button aria-label={`Delete ${s.name}`} onClick={() => deleteSource(s)} className="tap-none p-0.5 text-text-3 hover:text-danger">
                   <X size={13} />
                 </button>
               </div>
             ))}
           </div>
+
+          {reassignSource && (
+            <div className="mt-2 space-y-2 rounded-card border border-line bg-surface-2 p-3">
+              <p className="text-xs text-text-2">
+                <span className="font-semibold text-text-1">{reassignSource.name}</span> has expenses pointing at it.
+                Move them to another source first, then it can be deleted.
+              </p>
+              <select value={reassignTarget} onChange={e => setReassignTarget(e.target.value)} className={`w-full ${inputCls}`}>
+                <option value="">Unassign (no source)</option>
+                {catalog?.sources.filter(s => s.id !== reassignSource.id).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <Button variant="secondary" className="flex-1" onClick={() => setReassignSource(null)}>Cancel</Button>
+                <Button
+                  variant="danger"
+                  className="flex-1"
+                  loading={reassignSrc.isPending || delSrc.isPending}
+                  onClick={confirmReassignAndDelete}
+                >
+                  Move &amp; delete
+                </Button>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Payment modes */}

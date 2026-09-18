@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { notifyLocal } from '@/lib/localNotify'
+import { fmtMoney } from '@/lib/format'
 import type { AutopayItem, Book, Budget, Category, ExpenseDetail, ExpenseInput, PaymentMode, Source } from '@/lib/types'
 
 /* ── books ── */
@@ -361,6 +363,20 @@ export const useDeleteSource = createMutate<string>({
   invalidateKeys: ['catalog'],
 })
 
+/** Point every expense that references `fromSourceId` at `toSourceId` (or
+ *  clear it, if null), so the old source can then be deleted without a
+ *  foreign-key error and without losing any expense rows. */
+export function useReassignSource(bookId: string | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ fromSourceId, toSourceId }: { fromSourceId: string; toSourceId: string | null }) => {
+      const { error } = await supabase.from('expenses').update({ source_id: toSourceId }).eq('source_id', fromSourceId)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses', bookId] }),
+  })
+}
+
 export const useAddMode = createMutate<string>({
   table: 'payment_modes',
   method: 'insert',
@@ -379,6 +395,58 @@ export function useAutopaySyncOnOpen(bookId: string | null) {
     const key = `rb_sync_${new Date().toDateString()}`
     if (localStorage.getItem(key)) return
     localStorage.setItem(key, '1')
-    void supabase.rpc('log_due_autopay')
+
+    void (async () => {
+      const before = await supabase.from('autopay').select('id, name, amount, last_logged_ym').eq('book_id', bookId)
+      await supabase.rpc('log_due_autopay')
+      const after = await supabase.from('autopay').select('id, name, amount, last_logged_ym').eq('book_id', bookId)
+
+      const prevYm = new Map((before.data ?? []).map(a => [a.id, a.last_logged_ym]))
+      for (const a of after.data ?? []) {
+        if (a.last_logged_ym && a.last_logged_ym !== prevYm.get(a.id)) {
+          void notifyLocal('Autopay logged', `${a.name} · ${fmtMoney(Number(a.amount))}`)
+        }
+      }
+    })()
   }, [bookId])
+}
+
+/* ── notifications (budget alerts, populated server-side by pg_cron) ── */
+interface AppNotification {
+  id: string
+  type: 'category_budget' | 'overall_budget' | 'monthly_digest'
+  payload: { category?: string; spent: number; limit: number }
+  created_at: string
+}
+
+function notificationMessage(n: AppNotification): string {
+  const spent = fmtMoney(Number(n.payload.spent))
+  const limit = fmtMoney(Number(n.payload.limit))
+  if (n.type === 'category_budget') return `${n.payload.category}: ${spent} of ${limit} this month`
+  return `Overall spend: ${spent} of ${limit} this month`
+}
+
+/** Poll unread budget-alert rows on app open and surface each as a local
+ *  notification, then mark them read so they never repeat. */
+export function useNotifyOnOpen(bookId: string | null) {
+  const qc = useQueryClient()
+  useEffect(() => {
+    if (!bookId) return
+    void (async () => {
+      const { data } = await supabase
+        .from('notifications')
+        .select('id, type, payload, created_at')
+        .eq('book_id', bookId)
+        .is('read_at', null)
+        .order('created_at', { ascending: true })
+      const rows = (data ?? []) as AppNotification[]
+      if (rows.length === 0) return
+
+      for (const n of rows) {
+        void notifyLocal(n.type === 'overall_budget' ? 'Budget alert' : 'Category budget alert', notificationMessage(n))
+      }
+      await supabase.from('notifications').update({ read_at: new Date().toISOString() }).in('id', rows.map(r => r.id))
+      qc.invalidateQueries({ queryKey: ['notifications', bookId] })
+    })()
+  }, [bookId, qc])
 }

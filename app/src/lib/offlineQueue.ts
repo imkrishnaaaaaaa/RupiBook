@@ -20,11 +20,22 @@ function read(): QueuedExpense[] {
   }
 }
 
+const QUEUE_CHANGED_EVENT = 'rb:queue-changed'
+
 function write(items: QueuedExpense[]) {
   try {
     if (items.length === 0) localStorage.removeItem(KEY)
     else localStorage.setItem(KEY, JSON.stringify(items))
   } catch { /* quota — drop silently, nothing else to do */ }
+  window.dispatchEvent(new Event(QUEUE_CHANGED_EVENT))
+}
+
+/** Fires whenever the queue is written to (enqueue or flush) — lets every
+ *  mounted sync-status indicator (header, Settings) stay in sync with each
+ *  other without a shared store. */
+export function onQueueChanged(cb: () => void): () => void {
+  window.addEventListener(QUEUE_CHANGED_EVENT, cb)
+  return () => window.removeEventListener(QUEUE_CHANGED_EVENT, cb)
 }
 
 export function queueSize(): number {

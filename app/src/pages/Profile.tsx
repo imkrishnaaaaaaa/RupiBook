@@ -68,25 +68,9 @@ export default function Profile() {
         ))}
       </Card>
 
-      {/* About */}
-      <SectionTitle>About</SectionTitle>
-      <Card className="space-y-3 text-sm">
-        <div className="flex items-center justify-between">
-          <span className="text-text-2">Version</span>
-          <span className="font-mono text-text-3">2.0.0</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-text-2">Platform</span>
-          <span className="font-mono text-text-3">React + Capacitor + Supabase</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-text-2">Data</span>
-          <span className="font-mono text-text-3">Row-level secured</span>
-        </div>
-        <p className="text-[11px] text-text-3 text-center">
-          RupiBook v2 · your data, your control
-        </p>
-      </Card>
+      <p className="mt-8 text-center text-[11px] text-text-3">
+        RupiBook v2.0.0 · React + Capacitor + Supabase · row-level secured
+      </p>
     </div>
   )
 }

@@ -22,9 +22,6 @@ const config: CapacitorConfig = {
       smallIcon: 'ic_stat_rupibook',
       iconColor: '#2ce0a7'
     },
-    PushNotifications: {
-      presentationOptions: ['badge', 'sound', 'alert']
-    },
     CapacitorBiometricAuth: {
       iosKeychainGroup: 'com.rupibook.app'
     }

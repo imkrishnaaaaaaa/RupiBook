@@ -15,18 +15,25 @@ export default function PullToRefresh({ onRefresh, children }: { onRefresh: () =
   const [done, setDone] = useState(false)
   const startY = useRef<number | null>(null)
 
-  function atTop(): boolean {
-    return (document.scrollingElement?.scrollTop ?? window.scrollY) <= 0
+  // The active tab panel scrolls internally now (not the document), so "at
+  // top" means the nearest scrollable ancestor of the touch, not the page.
+  function atTop(target: EventTarget | null): boolean {
+    let el = target as HTMLElement | null
+    while (el && el !== document.body) {
+      if (el.scrollHeight > el.clientHeight) return el.scrollTop <= 0
+      el = el.parentElement
+    }
+    return true
   }
 
   function onStart(e: TouchEvent) {
-    if (atTop() && !busy) startY.current = e.touches[0].clientY
+    if (atTop(e.target) && !busy) startY.current = e.touches[0].clientY
   }
 
   function onMove(e: TouchEvent) {
     if (startY.current === null) return
     const delta = e.touches[0].clientY - startY.current
-    if (delta <= 8 || !atTop()) { pull.set(0); setDone(false); return }
+    if (delta <= 8 || !atTop(e.target)) { pull.set(0); setDone(false); return }
     
     // iOS-like rubber band resistance - exponential curve
     const resistance = 1 / (1 + Math.pow((delta - 8) / 100, 1.6))

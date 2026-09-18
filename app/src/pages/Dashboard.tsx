@@ -36,6 +36,9 @@ export default function Dashboard() {
   const { data: catalog } = useCatalog(bookId)
   const range = monthRangeIST()
   const { data: monthRows } = useExpenses(bookId, { from: range.from, to: range.to, limit: 500 })
+  // Deliberately no date filter — "recent" means the latest N expenses ever
+  // logged, not just this month's, so it isn't empty right after a month flips.
+  const { data: recentRows } = useExpenses(bookId, { limit: 40 })
   const [selected, setSelected] = useState<ExpenseDetail | null>(null)
 
   const total = useMemo(
@@ -185,7 +188,7 @@ export default function Dashboard() {
     )
   }
 
-  const recent = monthRows.slice(0, 20)
+  const recent = recentRows ?? []
 
   return (
     <div className="pt-6">
@@ -370,7 +373,7 @@ export default function Dashboard() {
       {/* Recent */}
       <SectionTitle>Recent expenses</SectionTitle>
       {recent.length === 0 ? (
-        <EmptyState icon={<ReceiptText size={22} />} title="Nothing logged this month" hint="Use the Log tab to add your first expense." />
+        <EmptyState icon={<ReceiptText size={22} />} title="Nothing logged yet" hint="Use the Log tab to add your first expense." />
       ) : (
         <div className="space-y-2">
           {recent.map(e => {

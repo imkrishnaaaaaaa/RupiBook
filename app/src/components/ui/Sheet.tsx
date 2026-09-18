@@ -7,10 +7,13 @@ interface Props {
   onClose: () => void
   title: string
   children: ReactNode
+  /** Rendered below the scrollable area, pinned to the bottom of the sheet
+   *  (e.g. a save button that shouldn't scroll away with long content). */
+  footer?: ReactNode
 }
 
 /** Bottom sheet — the primary modal pattern on mobile. */
-export default function Sheet({ open, onClose, title, children }: Props) {
+export default function Sheet({ open, onClose, title, children, footer }: Props) {
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -51,7 +54,8 @@ export default function Sheet({ open, onClose, title, children }: Props) {
               </button>
             </div>
             <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-line-strong" />
-            <div className="max-h-[72dvh] overflow-y-auto px-5 pb-6 pt-4">{children}</div>
+            <div className={`overflow-y-auto px-5 pt-4 ${footer ? 'max-h-[60dvh] pb-4' : 'max-h-[72dvh] pb-6'}`}>{children}</div>
+            {footer && <div className="border-t border-line px-5 pb-safe-bottom pt-3">{footer}</div>}
           </motion.div>
         </>
       )}

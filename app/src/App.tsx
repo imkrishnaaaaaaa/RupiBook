@@ -1,14 +1,18 @@
 import { Suspense, useEffect } from 'react'
-import { BrowserRouter } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@/context/AuthContext'
+import { useActiveBookId, useAuth } from '@/context/AuthContext'
 import { supabase, SUPABASE_READY } from '@/lib/supabase'
 import { flush, markSynced } from '@/lib/offlineQueue'
+import { useNotifyOnOpen } from '@/hooks/data'
 import { ToastHost, toast } from '@/components/ui/Toast'
 import { Skeleton } from '@/components/ui/Skeleton'
 import AppShell from '@/components/layout/AppShell'
+import StackPage from '@/components/layout/StackPage'
 import Auth from '@/pages/Auth'
 import SetupScreen from '@/pages/SetupScreen'
+import Profile from '@/pages/Profile'
+import Settings from '@/pages/Settings'
 
 function PageFallback() {
   return (
@@ -24,6 +28,9 @@ function PageFallback() {
 function Gate() {
   const { session, loading } = useAuth()
   const qc = useQueryClient()
+  const bookId = useActiveBookId()
+
+  useNotifyOnOpen(bookId)
 
   // Flush offline-queued expenses on mount + whenever connectivity returns.
   useEffect(() => {
@@ -51,14 +58,20 @@ function Gate() {
   if (loading) return <div className="flex min-h-dvh items-center justify-center"><PageFallback /></div>
   if (!session) return <Suspense fallback={null}><Auth /></Suspense>
 
-  return <AppShell />
+  return (
+    <Routes>
+      <Route path="/profile" element={<StackPage title="Profile"><Profile /></StackPage>} />
+      <Route path="/settings" element={<StackPage title="Settings"><Settings /></StackPage>} />
+      <Route path="*" element={<AppShell />} />
+    </Routes>
+  )
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <>
       <ToastHost />
       <Gate />
-    </BrowserRouter>
+    </>
   )
 }

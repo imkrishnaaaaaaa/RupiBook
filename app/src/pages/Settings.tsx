@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { useActiveBookId, useAuth } from '@/context/AuthContext'
 import { useAutopay, useBooks, useCatalog, useSaveAllBudgets, useSaveAutopay, useDeleteAutopay, useBudgets } from '@/hooks/data'
-import { flush, queueSize, markSynced, lastSyncedAt } from '@/lib/offlineQueue'
+import { useSyncStatus } from '@/hooks/useSync'
 import Button from '@/components/ui/Button'
 import Sheet from '@/components/ui/Sheet'
 import CatalogSheet from '@/components/CatalogSheet'
@@ -128,33 +128,7 @@ function relative(ts: number): string {
 }
 
 function SyncSection() {
-  const qc = useQueryClient()
-  const [pending, setPending] = useState(() => queueSize())
-  const [busy, setBusy] = useState(false)
-  const [lastSync, setLastSync] = useState(() => lastSyncedAt())
-
-  async function syncNow() {
-    if (!navigator.onLine) {
-      toast({ tone: 'info', title: 'You are offline', message: 'Connect to the internet and try again.' })
-      return
-    }
-    const before = queueSize()
-    setBusy(true)
-    try {
-      const { supabase } = await import('@/lib/supabase')
-      const n = await flush(async (bookId, input) => {
-        const { error } = await supabase.from('expenses').insert({ ...input, book_id: bookId })
-        if (error) throw error
-      })
-      await qc.invalidateQueries()
-      markSynced()
-      setLastSync(Date.now())
-      setPending(queueSize())
-      if (before > 0 && queueSize() === 0) toast({ tone: 'success', title: `Synced ${n} expense${n > 1 ? 's' : ''}` })
-    } finally {
-      setBusy(false)
-    }
-  }
+  const { pending, busy, lastSync, syncNow } = useSyncStatus()
 
   return (
     <>
@@ -220,7 +194,16 @@ function BudgetsSheet({ open, onClose, bookId }: { open: boolean; onClose: () =>
   const inputCls = 'min-w-0 flex-1 rounded-card border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-brand'
 
   return (
-    <Sheet open={open} onClose={onClose} title="Budgets">
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Budgets"
+      footer={
+        <Button onClick={save} loading={saveAll.isPending} disabled={!catalog} className="w-full py-3">
+          Save budgets
+        </Button>
+      }
+    >
       <div className="space-y-5">
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-text-3">Monthly limit · overall</p>
@@ -262,10 +245,6 @@ function BudgetsSheet({ open, onClose, bookId }: { open: boolean; onClose: () =>
             className="w-full accent-[var(--brand)]"
           />
         </label>
-
-        <Button onClick={save} loading={saveAll.isPending} disabled={!catalog} className="w-full py-3">
-          Save budgets
-        </Button>
       </div>
     </Sheet>
   )

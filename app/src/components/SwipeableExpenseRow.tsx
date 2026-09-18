@@ -8,6 +8,8 @@ import type { ExpenseDetail } from '@/lib/types'
 import { catIcon } from '@/lib/catIcons'
 import { fmtDayLabel } from '@/lib/format'
 import { Card } from '@/components/ui/Card'
+import Sheet from '@/components/ui/Sheet'
+import Button from '@/components/ui/Button'
 
 const ACTION_WIDTH = 96
 const THRESHOLD_RATIO = 0.35
@@ -28,6 +30,7 @@ export default function SwipeableExpenseRow({
   captureSwipe = true,
 }: SwipeableExpenseRowProps) {
   const [isSwiping, setIsSwiping] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const startX = useRef<number | null>(null)
   const startTime = useRef<number>(0)
 
@@ -42,7 +45,12 @@ export default function SwipeableExpenseRow({
     navigator.vibrate?.(pattern)
   }
 
-  async function handleDelete() {
+  function handleDeleteTap() {
+    setConfirmOpen(true)
+  }
+
+  async function confirmDelete() {
+    setConfirmOpen(false)
     try {
       await deleteMutate.mutateAsync(expense.id)
       toast({ tone: 'success', title: 'Deleted', message: fmtMoney(expense.amount) })
@@ -140,7 +148,6 @@ export default function SwipeableExpenseRow({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       onTouchCancel={onTouchCancel}
-      style={{ x: springX }}
       className="relative overflow-hidden"
     >
       {/* Background actions - revealed by transform */}
@@ -178,7 +185,7 @@ export default function SwipeableExpenseRow({
         >
           <motion.button
             whileTap={{ scale: 0.9 }}
-            onClick={handleDelete}
+            onClick={handleDeleteTap}
             className="flex items-center gap-2 rounded-xl bg-danger px-4 py-3 text-white font-medium shadow-lg"
             aria-label="Delete expense"
           >
@@ -209,6 +216,23 @@ export default function SwipeableExpenseRow({
           </Card>
         )}
       </motion.div>
+
+      <Sheet open={confirmOpen} onClose={() => { setConfirmOpen(false); x.set(0) }} title="Delete expense?">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 rounded-card border border-line bg-surface-2 p-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-3 text-text-2">
+              <Icon size={16} />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm text-text-1">{expense.category}{expense.source ? ` · ${expense.source}` : ''}</span>
+            <span className="num shrink-0 text-sm font-bold text-text-1">{fmtMoney(expense.amount)}</span>
+          </div>
+          <p className="text-xs text-text-3">This can't be undone.</p>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => { setConfirmOpen(false); x.set(0) }} className="flex-1">Cancel</Button>
+            <Button variant="danger" onClick={() => void confirmDelete()} loading={deleteMutate.isPending} className="flex-1">Delete</Button>
+          </div>
+        </div>
+      </Sheet>
     </motion.div>
   )
 }
