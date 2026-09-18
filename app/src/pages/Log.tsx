@@ -176,7 +176,7 @@ export default function Log() {
   const saveLabel = amount ? `Save ${fmtMoney(amountNum)}` : 'Save'
 
   return (
-    <div className="flex flex-col gap-5 pb-4 pt-6">
+    <div className="flex flex-col gap-5 pt-6">
       {/* Amount display */}
       <div className="text-center">
         <motion.p

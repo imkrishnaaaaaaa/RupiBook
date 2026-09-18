@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { forwardRef, useCallback } from 'react'
 import { LayoutDashboard, Plus, Search } from 'lucide-react'
 
 const TABS = [
@@ -12,7 +12,7 @@ interface BottomNavProps {
   onTabChange: (index: number) => void
 }
 
-export default function BottomNav({ activeIndex, onTabChange }: BottomNavProps) {
+const BottomNav = forwardRef<HTMLElement, BottomNavProps>(function BottomNav({ activeIndex, onTabChange }, ref) {
   const handleKeyDown = useCallback((e: React.KeyboardEvent, index: number) => {
     if (e.key === 'ArrowLeft' && index > 0) {
       e.preventDefault()
@@ -31,12 +31,20 @@ export default function BottomNav({ activeIndex, onTabChange }: BottomNavProps) 
 
   return (
     <nav
+      ref={ref}
       aria-label="Main navigation"
       role="tablist"
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(var(--spacing-safe-bottom)+10px)]"
     >
       <div className="mx-auto max-w-md">
-        <div className="pointer-events-auto flex items-center justify-around rounded-full border border-line bg-surface/90 p-1.5 shadow-[var(--shadow-float)] backdrop-blur-xl">
+        {/* A fixed backdrop-blur element sitting over actively-scrolling
+            content (the expense list) needs its own stable compositing
+            layer, or Chromium can visibly smear/blur it while the list
+            scrolls underneath — this is the one that was still happening. */}
+        <div
+          className="pointer-events-auto flex items-center justify-around rounded-full border border-line bg-surface/90 p-1.5 shadow-[var(--shadow-float)] backdrop-blur-xl"
+          style={{ willChange: 'transform' }}
+        >
           {TABS.map(({ label, icon: Icon }, index) => (
             <button
               key={index}
@@ -77,4 +85,6 @@ export default function BottomNav({ activeIndex, onTabChange }: BottomNavProps) 
       </div>
     </nav>
   )
-}
+})
+
+export default BottomNav

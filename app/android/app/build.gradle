@@ -1,5 +1,9 @@
 apply plugin: 'com.android.application'
 
+// package.json is the one place the app's version is written by hand — read
+// it here instead of hardcoding a copy that can (and did) go stale.
+def appPackageJson = new groovy.json.JsonSlurper().parseText(file('../../package.json').text)
+
 android {
     namespace = "com.rupibook.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +11,12 @@ android {
         applicationId "com.rupibook.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "2.0.0"
+        // versionCode is Play Store's own upload counter, not the same thing
+        // as the app's version — it must strictly increase on every upload
+        // regardless of whether package.json's version changed, so it stays
+        // a manually-bumped integer rather than derived from semver.
+        versionCode 3
+        versionName appPackageJson.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

@@ -3,8 +3,17 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
+import { readFileSync } from 'node:fs'
+
+// package.json is the one place the app's version is written by hand —
+// everywhere else (in-app "About" text, Android's build.gradle) reads it
+// from here instead of repeating the string, so bumping it can't miss a spot.
+const pkg = JSON.parse(readFileSync(path.resolve(__dirname, './package.json'), 'utf-8')) as { version: string }
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     react(),
     tailwindcss(),

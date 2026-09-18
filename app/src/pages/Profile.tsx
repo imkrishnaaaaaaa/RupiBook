@@ -70,7 +70,7 @@ export default function Profile() {
       </Card>
 
       <p className="mt-8 text-center text-[11px] text-text-3">
-        RupiBook v2.0.0 · React + Capacitor + Supabase · row-level secured
+        RupiBook v{__APP_VERSION__} · React + Capacitor + Supabase · row-level secured
       </p>
     </div>
   )

@@ -10,7 +10,7 @@ import { catIcon } from '@/lib/catIcons'
 import { fmtCompact, fmtDayLabel, fmtMoney, monthRangeIST } from '@/lib/format'
 import type { ExpenseDetail } from '@/lib/types'
 import ExpenseSheet from '@/components/ExpenseSheet'
-import SwipeableExpenseRow from '@/components/SwipeableExpenseRow'
+import ExpenseRow from '@/components/ExpenseRow'
 import Button from '@/components/ui/Button'
 import { Card, SectionTitle } from '@/components/ui/Card'
 import { EmptyState, ListSkeleton, ProgressRing } from '@/components/ui/bits'
@@ -379,12 +379,10 @@ export default function Dashboard() {
           {recent.map(e => {
             const Icon = catIcon(e.category)
             return (
-              <SwipeableExpenseRow
+              <ExpenseRow
                 key={e.id}
                 expense={e}
                 onOpen={() => setSelected(e)}
-                onEdit={setSelected}
-                captureSwipe={true}
               >
                 {(expense) => (
                   <Card className="flex items-center gap-3 !p-3 text-left">
@@ -398,7 +396,7 @@ export default function Dashboard() {
                     <span className="num shrink-0 text-sm font-bold text-text-1">{fmtMoney(expense.amount)}</span>
                   </Card>
                 )}
-              </SwipeableExpenseRow>
+              </ExpenseRow>
             )
           })}
         </div>

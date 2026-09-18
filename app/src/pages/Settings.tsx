@@ -98,7 +98,7 @@ export default function Settings() {
       <SyncSection />
 
       <p className="mt-8 text-center text-[11px] text-text-3">
-        RupiBook v2 · React + Supabase · your data, row-level secured
+        RupiBook v{__APP_VERSION__} · React + Supabase · your data, row-level secured
       </p>
     </div>
   )

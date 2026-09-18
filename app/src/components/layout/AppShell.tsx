@@ -41,12 +41,28 @@ export default function AppShell() {
   const [screenWidth, setScreenWidth] = useState(0)
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const navRef = useRef<HTMLElement>(null)
+  // Measured, not guessed — BottomNav is `fixed`, so it never actually
+  // pushes the scroll content down on its own, and a hardcoded padding
+  // guess either overlaps content or over-pads (varies by safe-area inset,
+  // which differs per device). ResizeObserver tracks it live.
+  const [navHeight, setNavHeight] = useState(0)
 
   useLayoutEffect(() => {
     const update = () => setScreenWidth(containerRef.current?.clientWidth ?? window.innerWidth)
     update()
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!navRef.current) return
+    const el = navRef.current
+    const update = () => setNavHeight(el.getBoundingClientRect().height)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
   // URL is the source of truth: land on Add by default, and stay in
@@ -110,8 +126,8 @@ export default function AppShell() {
                   // fighting the translateX math. `inert` keeps its flex slot
                   // while dropping pointer/keyboard/AT access.
                   inert={activeIndex !== i}
-                  className="w-full flex-shrink-0 overflow-y-auto px-4 pb-28"
-                  style={{ width: screenWidth, height: '100%' }}
+                  className="w-full flex-shrink-0 overflow-y-auto px-4"
+                  style={{ width: screenWidth, height: '100%', paddingBottom: navHeight + 16 }}
                 >
                   <TabComponent />
                 </div>
@@ -120,7 +136,7 @@ export default function AppShell() {
           </div>
         </PullToRefresh>
       </main>
-      <BottomNav activeIndex={activeIndex} onTabChange={handleTabChange} />
+      <BottomNav ref={navRef} activeIndex={activeIndex} onTabChange={handleTabChange} />
     </div>
   )
 }

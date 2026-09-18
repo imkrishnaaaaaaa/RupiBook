@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 interface Props {
@@ -25,7 +26,14 @@ export default function Sheet({ open, onClose, title, children, footer }: Props)
     }
   }, [open, onClose])
 
-  return (
+  // `fixed` only positions against the real viewport if no ancestor has a
+  // `transform` — the tab shell always has one (it's how the swipe/slide
+  // works), so a Sheet opened from deep inside it would render relative to
+  // that transformed box instead of the screen. On the shell's default tab
+  // (transform: 0) that happens to still look right; on any other tab it
+  // renders off-screen entirely, looking like it silently failed to open.
+  // A portal escapes that ancestor chain.
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -59,6 +67,7 @@ export default function Sheet({ open, onClose, title, children, footer }: Props)
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }
