@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+/* ── RupiBook Design System ─────────────────────────────
+   Dark-first premium. Mint accent on near-black.
+   Fonts: Space Grotesk (display) · Inter (body)
+   ──────────────────────────────────────────────────────── */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg: #f6f6f3;
+  --surface: #ffffff;
+  --surface-2: #f1f1ec;
+  --surface-3: #e8e8e2;
+  --overlay: rgb(246 246 243 / 0.72);
+
+  /* Lines */
+  --line: rgb(22 24 29 / 0.08);
+  --line-strong: rgb(22 24 29 / 0.16);
+
+  /* Text */
+  --text-1: #16181d;
+  --text-2: #565d68;
+  --text-3: #8a919c;
+
+  /* Brand — deepened mint for light surfaces */
+  --brand: #0c9f76;
+  --brand-strong: #06795a;
+  --brand-tint: rgb(12 159 118 / 0.10);
+  --on-brand: #ffffff;
+
+  /* Semantic */
+  --danger: #d33b45;
+  --danger-tint: rgb(211 59 69 / 0.10);
+  --warning: #b97a0a;
+  --warning-tint: rgb(185 122 10 / 0.12);
+  --info: #256fd4;
+  --info-tint: rgb(37 111 212 / 0.10);
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgb(22 24 29 / 0.05), 0 4px 16px rgb(22 24 29 / 0.05);
+  --shadow-pop: 0 8px 40px rgb(22 24 29 / 0.14);
+  /* Layered: contact + mid + ambient — makes floating bars read as physical depth */
+  --shadow-float: 0 1px 2px rgb(22 24 29 / 0.07), 0 6px 16px rgb(22 24 29 / 0.10), 0 16px 48px rgb(22 24 29 / 0.12);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --bg: #0a0c11;
+  --surface: #12151c;
+  --surface-2: #191d26;
+  --surface-3: #222734;
+  --overlay: rgb(10 12 17 / 0.72);
+
+  --line: rgb(255 255 255 / 0.07);
+  --line-strong: rgb(255 255 255 / 0.14);
+
+  --text-1: #f0f2f5;
+  --text-2: #9ba2ae;
+  --text-3: #5d6470;
+
+  --brand: #2ce0a7;
+  --brand-strong: #6ff0cc;
+  --brand-tint: rgb(44 224 167 / 0.12);
+  --on-brand: #06281d;
+
+  --danger: #ff6369;
+  --danger-tint: rgb(255 99 105 / 0.13);
+  --warning: #ffb224;
+  --warning-tint: rgb(255 178 36 / 0.13);
+  --info: #62a6ff;
+  --info-tint: rgb(98 166 255 / 0.13);
+
+  --shadow-card: none;
+  --shadow-pop: 0 16px 56px rgb(0 0 0 / 0.55), 0 0 0 1px var(--line);
+  --shadow-float: 0 2px 6px rgb(0 0 0 / 0.50), 0 10px 28px rgb(0 0 0 / 0.42), 0 24px 64px rgb(0 0 0 / 0.36);
+}
+
+@theme inline {
+  /* Type */
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Semantic colors → utilities (bg-surface, text-2, border-line, …) */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-overlay: var(--overlay);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-text-1: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-tint: var(--brand-tint);
+  --color-on-brand: var(--on-brand);
+
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-info: var(--info);
+  --color-info-tint: var(--info-tint);
+
+  /* Shape */
+  --radius-card: 20px;
+  --radius-sheet: 28px;
+
+  /* Motion durations for utilities */
+  --transition-duration-fast: 150ms;
+  --transition-duration-normal: 250ms;
+
+  /* Safe areas */
+  --spacing-safe-top: env(safe-area-inset-top, 0px);
+  --spacing-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Base ── */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-bg font-sans text-[15px] leading-relaxed text-text-1 antialiased;
+  overscroll-behavior-y: none;
+}
+
+::selection {
+  background: var(--brand-tint);
+  outline-color: var(--brand);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* Money always aligns */
+.num {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Hide scrollbars on horizontal chip rails */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Kill tap highlight on interactive elements */
+.tap-none {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Prevent focus rings and selection on Recharts SVG elements */
+.recharts-wrapper,
+.recharts-wrapper * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.recharts-wrapper:focus,
+.recharts-wrapper *:focus {
+  outline: none !important;
+}

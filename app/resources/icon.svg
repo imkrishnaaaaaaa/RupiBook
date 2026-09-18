@@ -1,0 +1,375 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024"
+     xmlns="http://www.w3.org/2000/svg">
+
+  <defs>
+    <!-- Background -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#31D7A5"/>
+      <stop offset="100%" stop-color="#18B98E"/>
+    </linearGradient>
+
+    <!-- Wallet -->
+    <linearGradient id="wallet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#164F40"/>
+      <stop offset="55%" stop-color="#0E4537"/>
+      <stop offset="100%" stop-color="#08392F"/>
+    </linearGradient>
+
+    <!-- Note -->
+    <linearGradient id="paper" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#EFFFF8"/>
+      <stop offset="100%" stop-color="#CDEFE3"/>
+    </linearGradient>
+
+    <!-- R / Rupee -->
+    <linearGradient id="symbol" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#12654D"/>
+      <stop offset="55%" stop-color="#07503D"/>
+      <stop offset="100%" stop-color="#06392E"/>
+    </linearGradient>
+
+    <!-- Button -->
+    <radialGradient id="button">
+      <stop offset="0%" stop-color="#1A5D4A"/>
+      <stop offset="65%" stop-color="#0D4537"/>
+      <stop offset="100%" stop-color="#062F26"/>
+    </radialGradient>
+
+    <!-- Shadows -->
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18"
+                    flood-color="#064636" flood-opacity=".35"/>
+    </filter>
+
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="7" stdDeviation="8"
+                    flood-color="#073C30" flood-opacity=".28"/>
+    </filter>
+
+    <filter id="symbolShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="3" dy="7" stdDeviation="4"
+                    flood-color="#032F25" flood-opacity=".45"/>
+    </filter>
+
+    <!-- Fine note texture -->
+    <pattern id="fineLines" width="18" height="12"
+             patternUnits="userSpaceOnUse"
+             patternTransform="rotate(-7)">
+      <path d="M0 3 C5 0 12 6 18 3"
+            fill="none"
+            stroke="#73B9A4"
+            stroke-width="0.8"
+            opacity=".42"/>
+      <path d="M0 8 C5 5 12 11 18 8"
+            fill="none"
+            stroke="#73B9A4"
+            stroke-width="0.6"
+            opacity=".30"/>
+    </pattern>
+
+    <clipPath id="frontNoteClip">
+      <rect x="245" y="385" width="535" height="400" rx="22"/>
+    </clipPath>
+  </defs>
+
+
+  <!-- ================= BACKGROUND ================= -->
+
+  <rect x="18" y="18"
+        width="988" height="988"
+        rx="170"
+        fill="url(#bg)"/>
+
+  <!-- subtle ground shadow -->
+  <ellipse cx="515" cy="855"
+           rx="340" ry="48"
+           fill="#07513E"
+           opacity=".18"
+           filter="url(#softShadow)"/>
+
+
+  <!-- ================= BACK NOTE ================= -->
+
+  <g transform="rotate(-13 510 530)"
+     filter="url(#softShadow)">
+
+    <rect x="215" y="335"
+          width="560"
+          height="410"
+          rx="24"
+          fill="url(#paper)"
+          stroke="#A8DEC9"
+          stroke-width="5"/>
+
+    <!-- note border -->
+    <rect x="238" y="358"
+          width="514"
+          height="364"
+          rx="13"
+          fill="none"
+          stroke="#72B8A3"
+          stroke-width="3"
+          opacity=".7"/>
+
+    <!-- decorative inner border -->
+    <rect x="249" y="369"
+          width="492"
+          height="342"
+          rx="9"
+          fill="none"
+          stroke="#8BC8B5"
+          stroke-width="1.5"
+          stroke-dasharray="3 5"
+          opacity=".65"/>
+
+    <!-- fine currency texture -->
+    <rect x="250" y="370"
+          width="490"
+          height="340"
+          fill="url(#fineLines)"
+          opacity=".45"/>
+
+    <!-- corner ornaments -->
+    <path d="M250 410 Q275 380 305 370"
+          fill="none"
+          stroke="#66AD98"
+          stroke-width="5"
+          opacity=".55"/>
+
+    <path d="M740 670 Q715 700 685 710"
+          fill="none"
+          stroke="#66AD98"
+          stroke-width="5"
+          opacity=".55"/>
+  </g>
+
+
+  <!-- ================= FRONT NOTE ================= -->
+
+  <g transform="rotate(-5 515 570)"
+     filter="url(#softShadow)">
+
+    <rect x="235" y="360"
+          width="555"
+          height="420"
+          rx="25"
+          fill="url(#paper)"
+          stroke="#B5E7D6"
+          stroke-width="5"/>
+
+    <!-- main border -->
+    <rect x="258" y="383"
+          width="509"
+          height="374"
+          rx="13"
+          fill="none"
+          stroke="#73BBA5"
+          stroke-width="3"/>
+
+    <!-- secondary border -->
+    <rect x="270" y="395"
+          width="485"
+          height="350"
+          rx="9"
+          fill="none"
+          stroke="#86C9B5"
+          stroke-width="1.5"
+          stroke-dasharray="3 5"/>
+
+    <!-- fine banknote texture -->
+    <rect x="271" y="396"
+          width="483"
+          height="348"
+          fill="url(#fineLines)"
+          opacity=".5"/>
+
+    <!-- top/bottom ornamental lines -->
+    <path d="M290 414
+             C350 402 410 426 470 414
+             S590 402 650 414
+             S710 426 735 414"
+          fill="none"
+          stroke="#71B5A0"
+          stroke-width="2"
+          opacity=".65"/>
+
+    <path d="M290 726
+             C350 714 410 738 470 726
+             S590 714 650 726
+             S710 738 735 726"
+          fill="none"
+          stroke="#71B5A0"
+          stroke-width="2"
+          opacity=".65"/>
+
+    <!-- corner decorative details -->
+    <g fill="none"
+       stroke="#67AC97"
+       stroke-width="3"
+       opacity=".75">
+
+      <path d="M270 430
+               Q275 405 300 395
+               Q315 400 325 420"/>
+
+      <path d="M755 430
+               Q750 405 725 395
+               Q710 400 700 420"/>
+
+      <path d="M270 710
+               Q275 735 300 745
+               Q315 740 325 720"/>
+
+      <path d="M755 710
+               Q750 735 725 745
+               Q710 740 700 720"/>
+    </g>
+
+    <!-- subtle central watermark -->
+    <circle cx="515" cy="570"
+            r="105"
+            fill="none"
+            stroke="#7DBEAB"
+            stroke-width="2"
+            opacity=".13"/>
+
+    <circle cx="515" cy="570"
+            r="78"
+            fill="none"
+            stroke="#7DBEAB"
+            stroke-width="1"
+            opacity=".15"/>
+  </g>
+
+
+  <!-- ================= ₹ + R SYMBOL ================= -->
+  <!-- Anatomy: stem + two full-width ₹ bars crossing + open bowl + leg.
+       Stroke-based so the bars genuinely pass through the letter. -->
+
+  <!-- Extruded/depth layer (same strokes, offset, darker) -->
+  <g transform="translate(7 11)"
+     fill="none"
+     stroke="#032F25"
+     stroke-width="46"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     opacity=".32"
+     filter="url(#symbolShadow)">
+    <path d="M400 405 V640"/>
+    <path d="M358 440 H580"/>
+    <path d="M358 502 H575"/>
+    <path d="M400 412 C500 400 590 420 592 465 C594 505 540 528 405 530"/>
+    <path d="M425 532 L560 645"/>
+  </g>
+
+  <!-- Main combined R + ₹ symbol -->
+  <g fill="none"
+     stroke="url(#symbol)"
+     stroke-width="46"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     filter="url(#symbolShadow)">
+    <path d="M400 405 V640"/>
+    <path d="M358 440 H580"/>
+    <path d="M358 502 H575"/>
+    <path d="M400 412 C500 400 590 420 592 465 C594 505 540 528 405 530"/>
+    <path d="M425 532 L560 645"/>
+  </g>
+
+  <!-- Highlight on symbol -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M383 425 V470" stroke="#31816B" stroke-width="9" opacity=".55"/>
+    <path d="M368 431 H566" stroke="#2E7A64" stroke-width="5" opacity=".35"/>
+  </g>
+
+
+  <!-- ================= WALLET ================= -->
+
+  <!-- wallet shadow -->
+  <rect x="205" y="665"
+        width="625"
+        height="275"
+        rx="45"
+        fill="#063C30"
+        opacity=".35"
+        filter="url(#shadow)"
+        transform="translate(0 15)"/>
+
+  <!-- outer wallet body -->
+  <rect x="200" y="650"
+        width="625"
+        height="275"
+        rx="45"
+        fill="url(#wallet)"
+        stroke="#073C30"
+        stroke-width="8"
+        filter="url(#shadow)"/>
+
+  <!-- wallet raised edge -->
+  <rect x="214" y="664"
+        width="597"
+        height="247"
+        rx="34"
+        fill="none"
+        stroke="#276E5C"
+        stroke-width="5"
+        opacity=".65"/>
+
+  <!-- upper rim -->
+  <path d="
+    M245 666
+    H780
+    Q808 666 811 695"
+        fill="none"
+        stroke="#3A806C"
+        stroke-width="7"
+        opacity=".45"/>
+
+  <!-- wallet subtle highlight -->
+  <path d="
+    M240 695
+    Q240 680 265 680
+    H760"
+        fill="none"
+        stroke="#5A9C89"
+        stroke-width="3"
+        opacity=".3"/>
+
+
+  <!-- ================= WALLET BUTTON ================= -->
+
+  <circle cx="760" cy="790"
+          r="29"
+          fill="#083A2E"
+          stroke="#0A3027"
+          stroke-width="5"/>
+
+  <circle cx="760" cy="790"
+          r="23"
+          fill="none"
+          stroke="#35E2B0"
+          stroke-width="8"/>
+
+  <circle cx="760" cy="790"
+          r="11"
+          fill="url(#button)"/>
+
+  <!-- button highlight -->
+  <path d="M749 774 A20 20 0 0 1 771 774"
+        fill="none"
+        stroke="#7CFFE0"
+        stroke-width="3"
+        stroke-linecap="round"
+        opacity=".7"/>
+
+
+  <!-- ================= FINAL LIGHTING ================= -->
+
+  <path d="
+    M235 650
+    H790"
+        stroke="#63A995"
+        stroke-width="3"
+        opacity=".25"/>
+
+</svg>
