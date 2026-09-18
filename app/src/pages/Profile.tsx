@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { LogOut, MoonStar, Settings } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { applyTheme, getStoredTheme, type Theme } from '@/lib/theme'
@@ -16,7 +17,7 @@ export default function Profile() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const displayName = user?.user_metadata?.full_name ?? user?.email?.split('@')[0] ?? 'User'
-  const currentTheme = getStoredTheme()
+  const [currentTheme, setCurrentTheme] = useState<Theme>(() => getStoredTheme())
 
   return (
     <div className="pt-6">
@@ -57,7 +58,7 @@ export default function Profile() {
         {THEMES.map(t => (
           <button
             key={t.key}
-            onClick={() => applyTheme(t.key)}
+            onClick={() => { applyTheme(t.key); setCurrentTheme(t.key) }}
             data-theme={t.key}
             className={`tap-none flex flex-1 items-center justify-center gap-1.5 rounded-full border py-2.5 text-sm font-semibold transition-colors ${
               currentTheme === t.key ? 'border-transparent bg-brand-tint text-brand' : 'border-line bg-surface-2 text-text-2'

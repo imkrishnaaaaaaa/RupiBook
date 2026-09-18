@@ -42,7 +42,8 @@ create table public.sources (
   book_id     uuid not null references public.books(id) on delete cascade,
   category_id uuid references public.categories(id) on delete cascade, -- null = valid for any category
   name        text not null,
-  sort        int  not null default 0
+  sort        int  not null default 0,
+  unique (book_id, name)
 );
 create index on public.sources (book_id);
 
@@ -261,7 +262,7 @@ begin
       and category_id = r.category_id
       and to_char(spent_at at time zone 'Asia/Kolkata', 'YYYY-MM') = d;
 
-    if spent > (r.monthly_limit * r.alert_threshold_pct / 100.0)
+    if spent >= (r.monthly_limit * r.alert_threshold_pct / 100.0)
       and not exists (
         select 1 from notifications
         where book_id = r.book_id and type = 'category_budget'
@@ -283,7 +284,7 @@ begin
     where book_id = r.book_id
       and to_char(spent_at at time zone 'Asia/Kolkata', 'YYYY-MM') = d;
 
-    if spent > (r.monthly_limit * r.alert_threshold_pct / 100.0)
+    if spent >= (r.monthly_limit * r.alert_threshold_pct / 100.0)
       and not exists (
         select 1 from notifications
         where book_id = r.book_id and type = 'overall_budget'

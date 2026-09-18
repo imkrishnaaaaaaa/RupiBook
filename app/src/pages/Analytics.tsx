@@ -43,9 +43,12 @@ export default function Analytics() {
   const [search, setSearch] = useState('')
 
   const range = useMemo(() => presetRange(preset), [preset])
+  // The chips select a category id, but expense_details only carries the
+  // category's name (no category_id column) — resolve id -> name here.
+  const categoryName = catalog?.categories.find(c => c.id === categoryId)?.name
   const { data: results, isFetching } = useExpenses(bookId, {
     ...range,
-    categoryId: categoryId ?? undefined,
+    category: categoryName,
     search: search || undefined,
     limit: 1000,
   })

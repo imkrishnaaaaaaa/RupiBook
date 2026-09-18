@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js'
 import { supabase, SUPABASE_READY } from '@/lib/supabase'
 import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
+import { toast } from '@/components/ui/Toast'
 
 interface AuthState {
   session: Session | null
@@ -18,22 +19,34 @@ const DEFAULT_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Bills', 'Health', 
 const DEFAULT_MODES = ['UPI', 'Cash', 'Card']
 
 async function bootstrapUser(userId: string) {
-  const { data: books } = await supabase.from('books').select('id')
-  if (books && books.length > 0) return
+  try {
+    const { data: books, error: booksErr } = await supabase.from('books').select('id')
+    if (booksErr) throw booksErr
+    if (books && books.length > 0) return
 
-  const { data: book } = await supabase
-    .from('books')
-    .insert({ user_id: userId, name: 'Personal' })
-    .select('id')
-    .single()
-  if (!book) return
+    const { data: book, error: bookErr } = await supabase
+      .from('books')
+      .insert({ user_id: userId, name: 'Personal' })
+      .select('id')
+      .single()
+    if (bookErr) throw bookErr
+    if (!book) return
 
-  await supabase.from('categories').insert(
-    DEFAULT_CATEGORIES.map((name, i) => ({ book_id: book.id, name, sort: i })),
-  )
-  await supabase.from('payment_modes').insert(
-    DEFAULT_MODES.map((name, i) => ({ book_id: book.id, name, sort: i })),
-  )
+    const { error: catErr } = await supabase.from('categories').insert(
+      DEFAULT_CATEGORIES.map((name, i) => ({ book_id: book.id, name, sort: i })),
+    )
+    if (catErr) throw catErr
+    const { error: modeErr } = await supabase.from('payment_modes').insert(
+      DEFAULT_MODES.map((name, i) => ({ book_id: book.id, name, sort: i })),
+    )
+    if (modeErr) throw modeErr
+  } catch (e) {
+    toast({
+      tone: 'error',
+      title: 'Setup incomplete',
+      message: `Couldn't set up your first book: ${e instanceof Error ? e.message : String(e)}. Try creating one in Settings.`,
+    })
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -102,14 +115,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ? 'com.rupibook.app://auth/callback'
       : `${window.location.origin}/auth/callback`
 
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo },
     })
+    if (error) toast({ tone: 'error', title: 'Sign-in failed', message: error.message })
   }
 
   async function signOut() {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    if (error) toast({ tone: 'error', title: 'Sign-out failed', message: error.message })
   }
 
   return (

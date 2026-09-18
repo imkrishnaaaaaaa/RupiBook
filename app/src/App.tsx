@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useActiveBookId, useAuth } from '@/context/AuthContext'
 import { supabase, SUPABASE_READY } from '@/lib/supabase'
 import { flush, markSynced } from '@/lib/offlineQueue'
+import { initSystemThemeSync } from '@/lib/theme'
 import { useNotifyOnOpen } from '@/hooks/data'
 import { ToastHost, toast } from '@/components/ui/Toast'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -68,6 +69,8 @@ function Gate() {
 }
 
 export default function App() {
+  useEffect(() => initSystemThemeSync(), [])
+
   return (
     <>
       <ToastHost />

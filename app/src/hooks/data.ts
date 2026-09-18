@@ -75,7 +75,9 @@ export function useCatalog(bookId: string | null) {
 export interface ExpenseFilters {
   from?: string
   to?: string
-  categoryId?: string
+  /** expense_details.category is a name, not an id — the view doesn't
+   *  expose category_id, so this must be the category's name. */
+  category?: string
   search?: string
   limit?: number
 }
@@ -88,7 +90,7 @@ export function expensesQuery(bookId: string, f: ExpenseFilters = {}) {
     .order('spent_at', { ascending: false })
   if (f.from) q = q.gte('spent_at', f.from)
   if (f.to) q = q.lt('spent_at', f.to)
-  if (f.categoryId) q = q.eq('category', f.categoryId)
+  if (f.category) q = q.eq('category', f.category)
   if (f.search) {
     // , ( ) are condition syntax in PostgREST or-filters; strip them so a
     // search like "samosa, chai" stays one condition instead of erroring.
@@ -178,14 +180,14 @@ function createMutate<TArgs>({
   table: string
   method: 'insert' | 'update' | 'delete' | 'upsert'
   invalidateKeys?: string[]
-  mutateFn?: (args: TArgs, supabase: typeof import('@/lib/supabase').supabase) => Promise<unknown>
+  mutateFn?: (args: TArgs, supabase: typeof import('@/lib/supabase').supabase, bookId: string | null) => Promise<unknown>
   onConflict?: string
 }) {
   return function useMutate(bookId: string | null) {
     const qc = useQueryClient()
     return useMutation({
       mutationFn: async (args: TArgs) => {
-        if (mutateFn) return mutateFn(args, supabase)
+        if (mutateFn) return mutateFn(args, supabase, bookId)
         const client = supabase.from(table)
         let result: { data: unknown; error: unknown } = { data: null, error: null }
         if (method === 'insert') {
@@ -323,8 +325,8 @@ export const useAddCategory = createMutate<string>({
   table: 'categories',
   method: 'insert',
   invalidateKeys: ['catalog'],
-  mutateFn: async (name, sb) => {
-    const { error } = await sb.from('categories').insert({ name, sort: 99 })
+  mutateFn: async (name, sb, bookId) => {
+    const { error } = await sb.from('categories').insert({ name, sort: 99, book_id: bookId })
     if (error) throw error
   },
 })
@@ -363,14 +365,20 @@ export const useDeleteSource = createMutate<string>({
   invalidateKeys: ['catalog'],
 })
 
-/** Point every expense that references `fromSourceId` at `toSourceId` (or
- *  clear it, if null), so the old source can then be deleted without a
- *  foreign-key error and without losing any expense rows. */
-export function useReassignSource(bookId: string | null) {
+/** Point every expense that references `fromId` in `column` at `toId`
+ *  (or clear it, for the nullable source/mode columns — category_id is
+ *  NOT NULL, so callers must pass another category there), so the old
+ *  category/source/mode can then be deleted without a foreign-key error
+ *  and without losing any expense rows. */
+export function useReassignExpenses(bookId: string | null) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ fromSourceId, toSourceId }: { fromSourceId: string; toSourceId: string | null }) => {
-      const { error } = await supabase.from('expenses').update({ source_id: toSourceId }).eq('source_id', fromSourceId)
+    mutationFn: async ({ column, fromId, toId }: {
+      column: 'category_id' | 'source_id' | 'payment_mode_id'
+      fromId: string
+      toId: string | null
+    }) => {
+      const { error } = await supabase.from('expenses').update({ [column]: toId }).eq(column, fromId)
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses', bookId] }),
@@ -389,6 +397,12 @@ export const useDeleteMode = createMutate<string>({
   invalidateKeys: ['catalog'],
 })
 
+/** The `rupibook-autopay` pg_cron job already logs due autopay items
+ *  server-side, once a day, for every book — not per-client. Calling
+ *  log_due_autopay() from here too meant every user's app-open re-ran that
+ *  full pass for everyone, not just their own book. This only reads what
+ *  the cron already did and notifies on anything new since last checked;
+ *  it never triggers the logging itself. */
 export function useAutopaySyncOnOpen(bookId: string | null) {
   useEffect(() => {
     if (!bookId) return
@@ -397,16 +411,16 @@ export function useAutopaySyncOnOpen(bookId: string | null) {
     localStorage.setItem(key, '1')
 
     void (async () => {
-      const before = await supabase.from('autopay').select('id, name, amount, last_logged_ym').eq('book_id', bookId)
-      await supabase.rpc('log_due_autopay')
-      const after = await supabase.from('autopay').select('id, name, amount, last_logged_ym').eq('book_id', bookId)
+      const { data: rows } = await supabase.from('autopay').select('id, name, amount, last_logged_ym').eq('book_id', bookId)
+      const seenKey = `rb_autopay_seen_${bookId}`
+      const seen = JSON.parse(localStorage.getItem(seenKey) ?? '{}') as Record<string, string | null>
 
-      const prevYm = new Map((before.data ?? []).map(a => [a.id, a.last_logged_ym]))
-      for (const a of after.data ?? []) {
-        if (a.last_logged_ym && a.last_logged_ym !== prevYm.get(a.id)) {
+      for (const a of rows ?? []) {
+        if (a.last_logged_ym && a.last_logged_ym !== seen[a.id]) {
           void notifyLocal('Autopay logged', `${a.name} · ${fmtMoney(Number(a.amount))}`)
         }
       }
+      localStorage.setItem(seenKey, JSON.stringify(Object.fromEntries((rows ?? []).map(a => [a.id, a.last_logged_ym]))))
     })()
   }, [bookId])
 }

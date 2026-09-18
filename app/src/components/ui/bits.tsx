@@ -3,21 +3,6 @@ import type { ReactNode } from 'react'
 import { Card } from './Card'
 import { Skeleton } from './Skeleton'
 
-/** Animated count-up number. */
-export function CountUp({ value, format }: { value: number; format?: (n: number) => string }) {
-  return (
-    <motion.span
-      key={value}
-      initial={{ opacity: 0.4, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="num"
-    >
-      {format ? format(value) : value}
-    </motion.span>
-  )
-}
-
 export function ProgressRing({
   pct,
   size = 120,

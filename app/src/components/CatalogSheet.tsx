@@ -5,10 +5,21 @@ import Button from './ui/Button'
 import { toast } from './ui/Toast'
 import {
   useAddCategory, useAddMode, useAddSource,
-  useCatalog, useDeleteCategory, useDeleteMode, useDeleteSource, useReassignSource,
+  useCatalog, useDeleteCategory, useDeleteMode, useDeleteSource, useReassignExpenses,
   useReorderCategories,
 } from '@/hooks/data'
-import type { Source } from '@/lib/types'
+
+type ReassignKind = 'category' | 'source' | 'mode'
+interface ReassignItem { kind: ReassignKind; id: string; name: string }
+
+const REASSIGN_COLUMN: Record<ReassignKind, 'category_id' | 'source_id' | 'payment_mode_id'> = {
+  category: 'category_id',
+  source: 'source_id',
+  mode: 'payment_mode_id',
+}
+// category_id is NOT NULL on expenses — unlike source/mode, a category can
+// only be reassigned to another category, never cleared.
+const REASSIGN_ALLOWS_UNASSIGN: Record<ReassignKind, boolean> = { category: false, source: true, mode: true }
 
 /**
  * Categories / sources / payment modes manager.
@@ -22,16 +33,16 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
   const reorderCats = useReorderCategories(bookId)
   const addSrc = useAddSource(bookId)
   const delSrc = useDeleteSource(bookId)
-  const reassignSrc = useReassignSource(bookId)
   const addMode = useAddMode(bookId)
   const delMode = useDeleteMode(bookId)
+  const reassign = useReassignExpenses(bookId)
 
   const [catName, setCatName] = useState('')
   const [srcName, setSrcName] = useState('')
   const [srcCat, setSrcCat] = useState('')
   const [modeName, setModeName] = useState('')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [reassignSource, setReassignSource] = useState<Source | null>(null)
+  const [reassignItem, setReassignItem] = useState<ReassignItem | null>(null)
   const [reassignTarget, setReassignTarget] = useState('')
 
   function isForeignKeyError(e: unknown): boolean {
@@ -55,20 +66,25 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
     }
   }
 
-  function deleteSource(s: Source) {
-    delSrc.mutate(s.id, {
-      onError: e => { if (isForeignKeyError(e)) { setReassignTarget(''); setReassignSource(s) } else fail(e) },
+  function deleteMutationFor(kind: ReassignKind) {
+    return kind === 'category' ? delCat : kind === 'source' ? delSrc : delMode
+  }
+
+  function deleteWithReassignFallback(kind: ReassignKind, id: string, name: string) {
+    deleteMutationFor(kind).mutate(id, {
+      onError: e => { if (isForeignKeyError(e)) { setReassignTarget(''); setReassignItem({ kind, id, name }) } else fail(e) },
     })
   }
 
   function confirmReassignAndDelete() {
-    if (!reassignSource) return
-    reassignSrc.mutate(
-      { fromSourceId: reassignSource.id, toSourceId: reassignTarget || null },
+    if (!reassignItem) return
+    if (!reassignTarget && !REASSIGN_ALLOWS_UNASSIGN[reassignItem.kind]) return
+    reassign.mutate(
+      { column: REASSIGN_COLUMN[reassignItem.kind], fromId: reassignItem.id, toId: reassignTarget || null },
       {
         onSuccess: () => {
-          delSrc.mutate(reassignSource.id, {
-            onSuccess: () => { toast({ tone: 'success', title: 'Source deleted' }); setReassignSource(null) },
+          deleteMutationFor(reassignItem.kind).mutate(reassignItem.id, {
+            onSuccess: () => { toast({ tone: 'success', title: 'Deleted' }); setReassignItem(null) },
             onError: fail,
           })
         },
@@ -145,13 +161,44 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
               >
                 <GripVertical size={14} className="text-text-3 shrink-0 select-none" aria-hidden="true" />
                 <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-2">{c.name}</span>
-                <button aria-label={`Delete ${c.name}`} onClick={() => delCat.mutate(c.id, { onError: fail })} className="tap-none rounded-full p-1 text-text-3 hover:text-danger">
+                <button aria-label={`Delete ${c.name}`} onClick={() => deleteWithReassignFallback('category', c.id, c.name)} className="tap-none rounded-full p-1 text-text-3 hover:text-danger">
                   <X size={12} />
                 </button>
               </div>
             ))}
           </div>
           <p className="mt-1.5 text-[11px] text-text-3">Drag to reorder · order here is the order you see while logging.</p>
+
+          {reassignItem?.kind === 'category' && (
+            <div className="mt-2 space-y-2 rounded-card border border-line bg-surface-2 p-3">
+              <p className="text-xs text-text-2">
+                <span className="font-semibold text-text-1">{reassignItem.name}</span> has expenses in it.
+                Move them to another category first, then it can be deleted.
+              </p>
+              {catalog && catalog.categories.filter(c => c.id !== reassignItem.id).length === 0 ? (
+                <p className="text-xs text-danger">This is the only category left — add another one before deleting this.</p>
+              ) : (
+                <select value={reassignTarget} onChange={e => setReassignTarget(e.target.value)} className={`w-full ${inputCls}`}>
+                  <option value="">Pick a category…</option>
+                  {catalog?.categories.filter(c => c.id !== reassignItem.id).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
+              <div className="flex gap-2">
+                <Button variant="secondary" className="flex-1" onClick={() => setReassignItem(null)}>Cancel</Button>
+                <Button
+                  variant="danger"
+                  className="flex-1"
+                  disabled={!reassignTarget}
+                  loading={reassign.isPending || delCat.isPending}
+                  onClick={confirmReassignAndDelete}
+                >
+                  Move &amp; delete
+                </Button>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Sources */}
@@ -184,31 +231,31 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
                     · {catalog.categories.find(c => c.id === s.category_id)?.name ?? 'any'}
                   </span>
                 </span>
-                <button aria-label={`Delete ${s.name}`} onClick={() => deleteSource(s)} className="tap-none p-0.5 text-text-3 hover:text-danger">
+                <button aria-label={`Delete ${s.name}`} onClick={() => deleteWithReassignFallback('source', s.id, s.name)} className="tap-none p-0.5 text-text-3 hover:text-danger">
                   <X size={13} />
                 </button>
               </div>
             ))}
           </div>
 
-          {reassignSource && (
+          {reassignItem?.kind === 'source' && (
             <div className="mt-2 space-y-2 rounded-card border border-line bg-surface-2 p-3">
               <p className="text-xs text-text-2">
-                <span className="font-semibold text-text-1">{reassignSource.name}</span> has expenses pointing at it.
+                <span className="font-semibold text-text-1">{reassignItem.name}</span> has expenses pointing at it.
                 Move them to another source first, then it can be deleted.
               </p>
               <select value={reassignTarget} onChange={e => setReassignTarget(e.target.value)} className={`w-full ${inputCls}`}>
                 <option value="">Unassign (no source)</option>
-                {catalog?.sources.filter(s => s.id !== reassignSource.id).map(s => (
+                {catalog?.sources.filter(s => s.id !== reassignItem.id).map(s => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
               <div className="flex gap-2">
-                <Button variant="secondary" className="flex-1" onClick={() => setReassignSource(null)}>Cancel</Button>
+                <Button variant="secondary" className="flex-1" onClick={() => setReassignItem(null)}>Cancel</Button>
                 <Button
                   variant="danger"
                   className="flex-1"
-                  loading={reassignSrc.isPending || delSrc.isPending}
+                  loading={reassign.isPending || delSrc.isPending}
                   onClick={confirmReassignAndDelete}
                 >
                   Move &amp; delete
@@ -234,12 +281,38 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
             {catalog?.paymentModes.map(m => (
               <span key={m.id} className="flex items-center gap-1 rounded-full border border-line bg-surface-2 py-1 pl-3 pr-1.5 text-xs font-medium text-text-2">
                 {m.name}
-                <button aria-label={`Delete ${m.name}`} onClick={() => delMode.mutate(m.id, { onError: fail })} className="tap-none rounded-full p-0.5 text-text-3 hover:text-danger">
+                <button aria-label={`Delete ${m.name}`} onClick={() => deleteWithReassignFallback('mode', m.id, m.name)} className="tap-none rounded-full p-0.5 text-text-3 hover:text-danger">
                   <X size={12} />
                 </button>
               </span>
             ))}
           </div>
+
+          {reassignItem?.kind === 'mode' && (
+            <div className="mt-2 space-y-2 rounded-card border border-line bg-surface-2 p-3">
+              <p className="text-xs text-text-2">
+                <span className="font-semibold text-text-1">{reassignItem.name}</span> has expenses paid via it.
+                Move them to another payment mode first, then it can be deleted.
+              </p>
+              <select value={reassignTarget} onChange={e => setReassignTarget(e.target.value)} className={`w-full ${inputCls}`}>
+                <option value="">Unassign (no payment mode)</option>
+                {catalog?.paymentModes.filter(m => m.id !== reassignItem.id).map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <Button variant="secondary" className="flex-1" onClick={() => setReassignItem(null)}>Cancel</Button>
+                <Button
+                  variant="danger"
+                  className="flex-1"
+                  loading={reassign.isPending || delMode.isPending}
+                  onClick={confirmReassignAndDelete}
+                >
+                  Move &amp; delete
+                </Button>
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </Sheet>

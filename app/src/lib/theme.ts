@@ -20,3 +20,12 @@ export function watchSystemTheme(onChange: () => void) {
   mq.addEventListener('change', onChange)
   return () => mq.removeEventListener('change', onChange)
 }
+
+/** Re-apply the theme whenever the OS scheme flips, but only while the user
+ *  has actually picked "system" — an explicit dark/light choice should not
+ *  drift with the OS. Call once for the app's lifetime. */
+export function initSystemThemeSync() {
+  return watchSystemTheme(() => {
+    if (getStoredTheme() === 'system') applyTheme('system')
+  })
+}

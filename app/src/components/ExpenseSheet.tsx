@@ -57,9 +57,13 @@ export default function ExpenseSheet({ expense, onClose }: Props) {
   }
 
   async function remove() {
-    await del.mutateAsync(expense!.id)
-    toast({ tone: 'success', title: 'Deleted', message: fmtMoney(expense!.amount) })
-    onClose()
+    try {
+      await del.mutateAsync(expense!.id)
+      toast({ tone: 'success', title: 'Deleted', message: fmtMoney(expense!.amount) })
+      onClose()
+    } catch (e) {
+      toast({ tone: 'error', title: 'Delete failed', message: e instanceof Error ? e.message : String(e) })
+    }
   }
 
   const selectCls = 'w-full rounded-card border border-line bg-surface-2 px-3 py-2.5 text-sm text-text-1'

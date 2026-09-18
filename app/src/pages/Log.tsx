@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Clock, Delete, Tag } from 'lucide-react'
-import { useActiveBookId, useAuth } from '@/context/AuthContext'
+import { useActiveBookId } from '@/context/AuthContext'
 import { useAddExpense, useAutopaySyncOnOpen, useCatalog, useUndoLastExpense } from '@/hooks/data'
 import { catIcon } from '@/lib/catIcons'
 import { fmtMoney } from '@/lib/format'
@@ -48,7 +48,6 @@ function whenLabel(v: string): string {
 }
 
 export default function Log() {
-  const { user } = useAuth()
   const bookId = useActiveBookId()
   useAutopaySyncOnOpen(bookId)
 
@@ -150,9 +149,9 @@ export default function Log() {
         spent_at: spentAt,
       }
 
-      if (looksOffline(e)) {
+      if (looksOffline(e) && bookId) {
         // Connectivity failure — queue locally so nothing is ever lost.
-        if (bookId) enqueue(bookId, input)
+        enqueue(bookId, input)
         toast({
           tone: 'info',
           title: 'Saved offline',
@@ -160,6 +159,10 @@ export default function Log() {
         })
         setAmount(''); setCategoryId(null); setSourceId(null); setModeId(null)
         setNotes(''); setManualTags(''); setPickedWhen(null)
+      } else if (looksOffline(e)) {
+        // Offline AND no book resolved yet — can't queue without knowing
+        // which book it belongs to. Keep the form so nothing typed is lost.
+        toast({ tone: 'error', title: 'Not saved', message: 'No book loaded yet — try again once the app finishes loading.' })
       } else {
         // Server rejected the row (FK, RLS, …) — retrying won't help.
         // Keep the form filled so nothing the user typed is lost.
@@ -332,9 +335,6 @@ export default function Log() {
       <Button onClick={() => void save()} disabled={!canSave} loading={addExpense.isPending} className="h-13 py-3.5 text-base">
         <span key={saveLabel} className="tabular-nums">{saveLabel}</span>
       </Button>
-
-      {/* Signed-in user hint (dev aid until Settings exists) */}
-      {user?.email && <p className="hidden">{user.email}</p>}
     </div>
   )
 }
