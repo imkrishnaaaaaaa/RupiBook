@@ -77,15 +77,15 @@ export default function Analytics() {
       <Card className="grid grid-cols-3 gap-2 text-center !p-3.5">
         <div>
           <p className="num font-display text-lg font-bold text-text-1">{fmtMoney(summary.total)}</p>
-          <p className="text-[10px] uppercase tracking-widest text-text-3">Total</p>
+          <p className="text-[10px] text-text-3">Total</p>
         </div>
         <div className="border-x border-line">
           <p className="num font-display text-lg font-bold text-text-1">{summary.count}</p>
-          <p className="text-[10px] uppercase tracking-widest text-text-3">Entries</p>
+          <p className="text-[10px] text-text-3">Entries</p>
         </div>
         <div>
           <p className="truncate font-display text-lg font-bold text-text-1">{summary.top}</p>
-          <p className="text-[10px] uppercase tracking-widest text-text-3">Top category</p>
+          <p className="text-[10px] text-text-3">Top category</p>
         </div>
       </Card>
 
@@ -151,8 +151,8 @@ export default function Analytics() {
                 onOpen={() => setOpen(e)}
               >
                 {(expense) => (
-                  <Card className="flex items-center gap-3 !p-3 text-left">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-text-2">
+                  <Card variant="flat" className="flex items-center gap-3 !p-3 text-left">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-3 text-text-2">
                       <Icon size={17} />
                     </span>
                     <span className="min-w-0 flex-1">

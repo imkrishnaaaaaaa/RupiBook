@@ -206,7 +206,7 @@ function BudgetsSheet({ open, onClose, bookId }: { open: boolean; onClose: () =>
     >
       <div className="space-y-5">
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-text-3">Monthly limit · overall</p>
+          <p className="mb-1.5 text-xs font-semibold text-text-3">Monthly limit · overall</p>
           <input
             type="number" inputMode="decimal" min="0"
             value={overall}
@@ -217,7 +217,7 @@ function BudgetsSheet({ open, onClose, bookId }: { open: boolean; onClose: () =>
         </div>
 
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-text-3">Per-category limits</p>
+          <p className="mb-1.5 text-xs font-semibold text-text-3">Per-category limits</p>
           <div className="space-y-2">
             {(catalog?.categories ?? []).map(c => (
               <div key={c.id} className="flex items-center gap-2">

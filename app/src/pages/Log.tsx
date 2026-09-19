@@ -166,33 +166,28 @@ export default function Log() {
     }
   }
 
-  const chipBase = 'tap-none whitespace-nowrap rounded-full border px-3.5 py-2 text-sm font-medium transition-all active:scale-95'
+  const chipBase = 'tap-none whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition-all active:scale-95'
   const saveLabel = amount ? `Save ${fmtMoney(amountNum)}` : 'Save'
 
   return (
-    <div className="flex flex-col gap-5 pt-6">
-      {/* Amount display */}
+    <div className="flex flex-col gap-1.5 pt-2">
+      {/* Amount display — category/source already show as the highlighted
+          chip below and as a tag in the preview, so no separate caption here. */}
       <div className="text-center">
         <motion.p
           key={amount}
           initial={{ scale: 0.98 }}
           animate={{ scale: 1 }}
-          className="num min-h-[56px] font-display text-5xl font-bold tracking-tight text-text-1"
+          className="num min-h-[40px] font-display text-4xl font-bold tracking-tight text-text-1"
         >
           ₹{amount || <span className="text-text-3">0</span>}
-          {!amount && <span className="ml-1 inline-block h-10 w-0.5 animate-pulse bg-brand align-middle" />}
+          {!amount && <span className="ml-1 inline-block h-7 w-0.5 animate-pulse bg-brand align-middle" />}
         </motion.p>
-        {category && (
-          <p className="mt-1 text-xs text-text-3">
-            for <span className="font-semibold text-text-2">{category.name}</span>
-            {source && <> at {source.name}</>}
-          </p>
-        )}
       </div>
 
       {/* Category rail */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-text-3 flex items-center gap-1">
+        <p className="mb-1 text-xs font-semibold text-text-3 flex items-center gap-1">
           Category <span className="text-danger" aria-hidden="true">*</span>
         </p>
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
@@ -224,7 +219,7 @@ export default function Log() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-text-3 flex items-center gap-1">
+            <p className="mb-1 text-xs font-semibold text-text-3 flex items-center gap-1">
               Source <span className="text-danger" aria-hidden="true">*</span>
             </p>
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
@@ -251,7 +246,7 @@ export default function Log() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-text-3 flex items-center gap-1">
+            <p className="mb-1 text-xs font-semibold text-text-3 flex items-center gap-1">
               Paid via <span className="text-danger" aria-hidden="true">*</span>
             </p>
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
@@ -274,9 +269,9 @@ export default function Log() {
         value={notes}
         onChange={e => setNotes(e.target.value)}
         placeholder="Note (optional)"
-        className="w-full rounded-card border border-line bg-surface px-4 py-3 text-sm placeholder:text-text-3 focus-visible:outline-brand"
+        className="w-full rounded-card border border-line bg-surface px-4 py-1.5 text-sm placeholder:text-text-3 focus-visible:outline-brand"
       />
-      <div className="-mt-3 flex justify-end">
+      <div className="-mt-2 flex justify-end">
         <label className="flex cursor-pointer items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-[11px] text-text-3 transition-colors hover:text-text-2">
           <Clock size={11} />
           {whenLabel(whenValue)}
@@ -311,22 +306,22 @@ export default function Log() {
       </AnimatePresence>
 
       {/* Keypad */}
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-3 gap-1.5">
         {KEYS.map(k => (
           <motion.button
             key={k}
             whileTap={{ scale: 0.94 }}
             onClick={() => press(k)}
             aria-label={k === 'back' ? 'Backspace' : k}
-            className="tap-none flex h-14 items-center justify-center rounded-card border border-line bg-surface text-xl font-semibold text-text-1 shadow-card"
+            className="tap-none flex h-10 items-center justify-center rounded-card border border-line bg-surface text-lg font-semibold text-text-1 shadow-card"
           >
-            {k === 'back' ? <Delete size={20} /> : k}
+            {k === 'back' ? <Delete size={18} /> : k}
           </motion.button>
         ))}
       </div>
 
       {/* Save */}
-      <Button onClick={() => void save()} disabled={!canSave} loading={addExpense.isPending} className="h-13 py-3.5 text-base">
+      <Button onClick={() => void save()} disabled={!canSave} loading={addExpense.isPending} className="h-11 py-2.5 text-base">
         <span key={saveLabel} className="tabular-nums">{saveLabel}</span>
       </Button>
     </div>

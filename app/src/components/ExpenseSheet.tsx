@@ -72,13 +72,34 @@ export default function ExpenseSheet({ expense, onClose, readOnly = false }: Pro
     }
   }
 
-  const selectCls = 'w-full rounded-card border border-line bg-surface-2 px-3 py-2.5 text-sm text-text-1'
+  const selectCls = 'w-full rounded-card border border-line bg-surface-2 px-3 py-2 text-sm text-text-1'
+
+  const footer = !readOnly && (
+    <div className="space-y-2">
+      <Button onClick={() => void save()} loading={update.isPending} className="h-11 w-full py-0">
+        Save changes
+      </Button>
+
+      {confirming ? (
+        <Button variant="danger" onClick={() => void remove()} loading={del.isPending} className="h-11 w-full py-0">
+          Tap again to delete permanently
+        </Button>
+      ) : (
+        <button
+          onClick={() => setConfirming(true)}
+          className="tap-none flex w-full items-center justify-center gap-2 py-1.5 text-sm font-medium text-danger"
+        >
+          <Trash2 size={15} /> Delete expense
+        </button>
+      )}
+    </div>
+  )
 
   return (
-    <Sheet open={!!expense} onClose={onClose} title={fmtDate(expense.spent_at)}>
-      <div className="space-y-4">
+    <Sheet open={!!expense} onClose={onClose} title={fmtDate(expense.spent_at)} footer={footer}>
+      <div className="space-y-3">
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Amount</span>
+          <span className="mb-1 block text-xs font-semibold text-text-3">Amount</span>
           <input
             type="number"
             inputMode="decimal"
@@ -92,7 +113,7 @@ export default function ExpenseSheet({ expense, onClose, readOnly = false }: Pro
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Date &amp; time</span>
+          <span className="mb-1 block text-xs font-semibold text-text-3">Date &amp; time</span>
           <input
             type="datetime-local"
             value={spentAt}
@@ -104,7 +125,7 @@ export default function ExpenseSheet({ expense, onClose, readOnly = false }: Pro
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Category</span>
+          <span className="mb-1 block text-xs font-semibold text-text-3">Category</span>
           <select value={categoryId} onChange={e => setCategoryId(e.target.value)} disabled={readOnly} className={`${selectCls} disabled:opacity-60`}>
             <option value="">—</option>
             {catalog?.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -113,7 +134,7 @@ export default function ExpenseSheet({ expense, onClose, readOnly = false }: Pro
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Source</span>
+            <span className="mb-1 block text-xs font-semibold text-text-3">Source</span>
             <select value={sourceId} onChange={e => setSourceId(e.target.value)} disabled={readOnly} className={`${selectCls} disabled:opacity-60`}>
               <option value="">—</option>
               {(catalog?.sources ?? [])
@@ -122,7 +143,7 @@ export default function ExpenseSheet({ expense, onClose, readOnly = false }: Pro
             </select>
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Paid via</span>
+            <span className="mb-1 block text-xs font-semibold text-text-3">Paid via</span>
             <select value={modeId} onChange={e => setModeId(e.target.value)} disabled={readOnly} className={`${selectCls} disabled:opacity-60`}>
               <option value="">—</option>
               {catalog?.paymentModes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -131,7 +152,7 @@ export default function ExpenseSheet({ expense, onClose, readOnly = false }: Pro
         </div>
 
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Note</span>
+          <span className="mb-1 block text-xs font-semibold text-text-3">Note</span>
           <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} disabled={readOnly} className={`${selectCls} disabled:opacity-60`} />
         </label>
 
@@ -141,27 +162,6 @@ export default function ExpenseSheet({ expense, onClose, readOnly = false }: Pro
               <span key={t} className="rounded-md bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-text-2">#{t}</span>
             ))}
           </div>
-        )}
-
-        {!readOnly && (
-          <>
-            <Button onClick={() => void save()} loading={update.isPending} className="w-full py-3">
-              Save changes
-            </Button>
-
-            {confirming ? (
-              <Button variant="danger" onClick={() => void remove()} loading={del.isPending} className="w-full py-3">
-                Tap again to delete permanently
-              </Button>
-            ) : (
-              <button
-                onClick={() => setConfirming(true)}
-                className="tap-none flex w-full items-center justify-center gap-2 py-2 text-sm font-medium text-danger"
-              >
-                <Trash2 size={15} /> Delete expense
-              </button>
-            )}
-          </>
         )}
       </div>
     </Sheet>

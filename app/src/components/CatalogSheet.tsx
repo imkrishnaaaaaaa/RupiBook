@@ -137,7 +137,7 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
       <div className="space-y-6">
         {/* Categories */}
         <section>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-text-3">Categories</p>
+          <p className="mb-2 text-xs font-semibold text-text-3">Categories</p>
           <div className="mb-2 flex gap-2">
             <input value={catName} onChange={e => setCatName(e.target.value)} placeholder="New category…"
               onKeyDown={e => e.key === 'Enter' && catName.trim() && addCat.mutate(catName.trim(), { onSuccess: () => setCatName(''), onError: fail })}
@@ -203,7 +203,7 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
 
         {/* Sources */}
         <section>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-text-3">Sources</p>
+          <p className="mb-2 text-xs font-semibold text-text-3">Sources</p>
           <div className="mb-2 flex gap-2">
             <select value={srcCat} onChange={e => setSrcCat(e.target.value)} className={`${inputCls} !flex-none basis-32`}>
               <option value="">Any category</option>
@@ -267,7 +267,7 @@ export default function CatalogSheet({ open, onClose, bookId }: { open: boolean;
 
         {/* Payment modes */}
         <section>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-text-3">Payment modes</p>
+          <p className="mb-2 text-xs font-semibold text-text-3">Payment modes</p>
           <div className="mb-2 flex gap-2">
             <input value={modeName} onChange={e => setModeName(e.target.value)} placeholder="e.g. Credit Card"
               onKeyDown={e => e.key === 'Enter' && modeName.trim() && addMode.mutate(modeName.trim(), { onSuccess: () => setModeName(''), onError: fail })}

@@ -1,7 +1,29 @@
-import { motion } from 'framer-motion'
-import type { ReactNode } from 'react'
+import { animate, motion } from 'framer-motion'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Card } from './Card'
 import { Skeleton } from './Skeleton'
+import { fmtMoney } from '@/lib/format'
+
+/** Counts up/down to the new amount instead of snapping to it — the one
+ *  deliberate motion moment on the page, not scattered everywhere. */
+export function AnimatedAmount({ value, className }: { value: number; className?: string }) {
+  const [display, setDisplay] = useState(0)
+  const prev = useRef(0)
+
+  useEffect(() => {
+    const from = prev.current
+    prev.current = value
+    if (from === value) { setDisplay(value); return }
+    const controls = animate(from, value, {
+      duration: 0.7,
+      ease: [0.22, 1, 0.36, 1],
+      onUpdate: setDisplay,
+    })
+    return () => controls.stop()
+  }, [value])
+
+  return <p className={className}>{fmtMoney(display)}</p>
+}
 
 export function ProgressRing({
   pct,

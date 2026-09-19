@@ -13,7 +13,7 @@ import ExpenseSheet from '@/components/ExpenseSheet'
 import ExpenseRow from '@/components/ExpenseRow'
 import Button from '@/components/ui/Button'
 import { Card, SectionTitle } from '@/components/ui/Card'
-import { EmptyState, ListSkeleton, ProgressRing } from '@/components/ui/bits'
+import { AnimatedAmount, EmptyState, ListSkeleton, ProgressRing } from '@/components/ui/bits'
 
 const PIE_COLORS = ['#2ce0a7', '#62a6ff', '#ffb224', '#ff6369', '#c084fc', '#4dd0e1', '#f48fb1', '#a3e635']
 
@@ -192,15 +192,15 @@ export default function Dashboard() {
 
   return (
     <div className="pt-6">
-      {/* Hero */}
-      <Card className="flex items-center gap-5">
+      {/* Hero — the one bold element on this page; everything below it stays quiet */}
+      <Card variant="hero" className="flex items-center gap-5">
         <ProgressRing pct={pct} size={116}>
           <span className="num text-lg font-bold text-text-1">{Math.round(pct)}%</span>
-          <span className="text-[10px] uppercase tracking-widest text-text-3">of budget</span>
+          <span className="text-[11px] text-text-3">of budget</span>
         </ProgressRing>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-text-3">This month</p>
-          <p className="num mt-1 font-display text-3xl font-bold tracking-tight text-text-1">{fmtMoney(total)}</p>
+          <p className="text-sm font-medium text-text-2">This month</p>
+          <AnimatedAmount value={total} className="num mt-1 font-display text-3xl font-bold tracking-tight text-text-1" />
           <p className="mt-1 text-xs leading-relaxed text-text-2">
             {limit > 0
               ? <>of <span className="num">{fmtMoney(limit)}</span> ·{' '}
@@ -385,8 +385,8 @@ export default function Dashboard() {
                 onOpen={() => setSelected(e)}
               >
                 {(expense) => (
-                  <Card className="flex items-center gap-3 !p-3 text-left">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-text-2">
+                  <Card variant="flat" className="flex items-center gap-3 !p-3 text-left">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-3 text-text-2">
                       <Icon size={17} />
                     </span>
                     <span className="min-w-0 flex-1">

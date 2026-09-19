@@ -1,4 +1,5 @@
 import { forwardRef, useCallback } from 'react'
+import { motion } from 'framer-motion'
 import { LayoutDashboard, Plus, Search } from 'lucide-react'
 
 const TABS = [
@@ -59,11 +60,10 @@ const BottomNav = forwardRef<HTMLElement, BottomNavProps>(function BottomNav({ a
             >
               <span className="relative flex flex-col items-center gap-0.5 rounded-full py-2">
                 {activeIndex === index && (
-                  <span
+                  <motion.span
+                    layoutId="bottom-nav-pill"
                     className="absolute inset-0 rounded-full bg-brand-tint"
-                    style={{
-                      transition: 'all 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-                    }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 40 }}
                   />
                 )}
                 <Icon
