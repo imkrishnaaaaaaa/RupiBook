@@ -168,7 +168,7 @@ export default function Analytics() {
         </div>
       )}
 
-      <ExpenseSheet expense={open} onClose={() => setOpen(null)} />
+      <ExpenseSheet expense={open} onClose={() => setOpen(null)} readOnly />
     </div>
   )
 }

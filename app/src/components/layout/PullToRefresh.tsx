@@ -68,15 +68,20 @@ export default function PullToRefresh({ onRefresh, children }: { onRefresh: () =
   const loaderRotation = useTransform(springPull, [0, THRESHOLD], [0, 360])
 
   return (
+    // flex-col + h-full: without an explicit height here, this div (and
+    // everything below it) sized itself off its own content instead of the
+    // fixed space `main` actually has, so nothing ever really scrolled
+    // internally — the whole page grew and the browser scrolled it instead.
     <div
       onTouchStart={onStart}
       onTouchMove={onMove}
       onTouchEnd={() => void onEnd()}
       onTouchCancel={() => { startY.current = null; pull.set(0) }}
+      className="flex h-full flex-col"
     >
       <motion.div
         style={{ height: busy ? 28 : springPull }}
-        className="flex items-center justify-center overflow-hidden text-text-3"
+        className="flex shrink-0 items-center justify-center overflow-hidden text-text-3"
       >
         {(springPull.get() > 12 || busy || done) && (
           <motion.div

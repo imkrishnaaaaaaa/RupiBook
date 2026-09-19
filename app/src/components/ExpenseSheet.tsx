@@ -5,16 +5,19 @@ import Button from './ui/Button'
 import { toast } from './ui/Toast'
 import { useCatalog } from '@/hooks/data'
 import { useDeleteExpense, useUpdateExpense } from '@/hooks/data'
-import { fmtMoney, fmtDate } from '@/lib/format'
+import { fmtMoney, fmtDate, toLocalInput } from '@/lib/format'
 import type { ExpenseDetail } from '@/lib/types'
 
 interface Props {
   expense: ExpenseDetail | null
   onClose: () => void
+  /** Analytics/Search is look-but-don't-touch — Dashboard is where you
+   *  actually manage entries. Same sheet, fields just can't be changed. */
+  readOnly?: boolean
 }
 
 /** View / edit / delete a single expense. */
-export default function ExpenseSheet({ expense, onClose }: Props) {
+export default function ExpenseSheet({ expense, onClose, readOnly = false }: Props) {
   const bookId = expense?.book_id ?? null
   const { data: catalog } = useCatalog(bookId)
   const update = useUpdateExpense(bookId)
@@ -25,6 +28,7 @@ export default function ExpenseSheet({ expense, onClose }: Props) {
   const [sourceId, setSourceId] = useState('')
   const [modeId, setModeId] = useState('')
   const [notes, setNotes] = useState('')
+  const [spentAt, setSpentAt] = useState('')
   const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
@@ -34,6 +38,7 @@ export default function ExpenseSheet({ expense, onClose }: Props) {
     setSourceId((catalog?.sources.find(s => s.name === expense.source))?.id ?? '')
     setModeId((catalog?.paymentModes.find(m => m.name === expense.payment_mode))?.id ?? '')
     setNotes(expense.notes)
+    setSpentAt(toLocalInput(new Date(expense.spent_at)))
     setConfirming(false)
   }, [expense, catalog])
 
@@ -48,6 +53,7 @@ export default function ExpenseSheet({ expense, onClose }: Props) {
         source_id: sourceId || null,
         payment_mode_id: modeId || null,
         notes,
+        spent_at: new Date(spentAt).toISOString(),
       })
       toast({ tone: 'success', title: 'Updated' })
       onClose()
@@ -80,13 +86,26 @@ export default function ExpenseSheet({ expense, onClose }: Props) {
             step="0.01"
             value={amount}
             onChange={e => setAmount(e.target.value)}
-            className={selectCls}
+            disabled={readOnly}
+            className={`${selectCls} disabled:opacity-60`}
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Date &amp; time</span>
+          <input
+            type="datetime-local"
+            value={spentAt}
+            max={toLocalInput(new Date())}
+            onChange={e => setSpentAt(e.target.value)}
+            disabled={readOnly}
+            className={`${selectCls} disabled:opacity-60`}
           />
         </label>
 
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Category</span>
-          <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className={selectCls}>
+          <select value={categoryId} onChange={e => setCategoryId(e.target.value)} disabled={readOnly} className={`${selectCls} disabled:opacity-60`}>
             <option value="">—</option>
             {catalog?.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -95,7 +114,7 @@ export default function ExpenseSheet({ expense, onClose }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Source</span>
-            <select value={sourceId} onChange={e => setSourceId(e.target.value)} className={selectCls}>
+            <select value={sourceId} onChange={e => setSourceId(e.target.value)} disabled={readOnly} className={`${selectCls} disabled:opacity-60`}>
               <option value="">—</option>
               {(catalog?.sources ?? [])
                 .filter(s => !s.category_id || s.category_id === categoryId)
@@ -104,7 +123,7 @@ export default function ExpenseSheet({ expense, onClose }: Props) {
           </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Paid via</span>
-            <select value={modeId} onChange={e => setModeId(e.target.value)} className={selectCls}>
+            <select value={modeId} onChange={e => setModeId(e.target.value)} disabled={readOnly} className={`${selectCls} disabled:opacity-60`}>
               <option value="">—</option>
               {catalog?.paymentModes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
@@ -113,7 +132,7 @@ export default function ExpenseSheet({ expense, onClose }: Props) {
 
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-text-3">Note</span>
-          <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} className={selectCls} />
+          <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} disabled={readOnly} className={`${selectCls} disabled:opacity-60`} />
         </label>
 
         {expense.tags.length > 0 && (
@@ -124,21 +143,25 @@ export default function ExpenseSheet({ expense, onClose }: Props) {
           </div>
         )}
 
-        <Button onClick={() => void save()} loading={update.isPending} className="w-full py-3">
-          Save changes
-        </Button>
+        {!readOnly && (
+          <>
+            <Button onClick={() => void save()} loading={update.isPending} className="w-full py-3">
+              Save changes
+            </Button>
 
-        {confirming ? (
-          <Button variant="danger" onClick={() => void remove()} loading={del.isPending} className="w-full py-3">
-            Tap again to delete permanently
-          </Button>
-        ) : (
-          <button
-            onClick={() => setConfirming(true)}
-            className="tap-none flex w-full items-center justify-center gap-2 py-2 text-sm font-medium text-danger"
-          >
-            <Trash2 size={15} /> Delete expense
-          </button>
+            {confirming ? (
+              <Button variant="danger" onClick={() => void remove()} loading={del.isPending} className="w-full py-3">
+                Tap again to delete permanently
+              </Button>
+            ) : (
+              <button
+                onClick={() => setConfirming(true)}
+                className="tap-none flex w-full items-center justify-center gap-2 py-2 text-sm font-medium text-danger"
+              >
+                <Trash2 size={15} /> Delete expense
+              </button>
+            )}
+          </>
         )}
       </div>
     </Sheet>

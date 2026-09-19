@@ -4,7 +4,7 @@ import { Clock, Delete, Tag } from 'lucide-react'
 import { useActiveBookId } from '@/context/AuthContext'
 import { useAddExpense, useAutopaySyncOnOpen, useCatalog, useUndoLastExpense } from '@/hooks/data'
 import { catIcon } from '@/lib/catIcons'
-import { fmtMoney } from '@/lib/format'
+import { fmtMoney, toLocalInput } from '@/lib/format'
 import { enqueue } from '@/lib/offlineQueue'
 import Button from '@/components/ui/Button'
 import { toast } from '@/components/ui/Toast'
@@ -24,12 +24,6 @@ function looksOffline(e: unknown): boolean {
   if (!navigator.onLine) return true
   const err = e as { code?: string; message?: string }
   return !err.code && /network|fetch|load failed|timed?\s*out/i.test(err.message ?? '')
-}
-
-/** Date → value usable by <input type="datetime-local"> in local time. */
-function toLocalInput(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 /** Tiny relative label for the time chip. */

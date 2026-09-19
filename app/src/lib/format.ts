@@ -13,6 +13,12 @@ export function fmtCompact(n: number): string {
   return '₹' + Math.round(n)
 }
 
+/** Date → value usable by <input type="datetime-local"> in local time. */
+export function toLocalInput(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 export function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString('en-IN', {
     day: 'numeric',

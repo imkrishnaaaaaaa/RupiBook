@@ -97,14 +97,19 @@ export default function AppShell() {
   const transformX = -activeIndex * screenWidth
 
   return (
-    <div ref={containerRef} className="mx-auto flex min-h-dvh w-full max-w-md flex-col">
+      // h-dvh, not min-h-dvh — a *minimum* height lets this box grow past
+      // the screen when a tab's content is tall, and once it grows, the
+      // browser scrolls the whole page (header included) instead of any
+      // per-tab content. A fixed height is what actually makes `main`'s
+      // overflow-hidden (and each tabpanel's own scroll) mean anything.
+    <div ref={containerRef} className="mx-auto flex h-dvh w-full max-w-md flex-col">
       <TopBar />
       <main className="relative flex-1 overflow-hidden">
         <PullToRefresh onRefresh={refresh}>
           {/* Fixed clipping viewport — must NOT carry the transform itself,
               or sliding it moves its own clip boundary off-screen along with
               the content. The transform lives on the row inside instead. */}
-          <div className="h-full w-full overflow-hidden">
+          <div className="min-h-0 w-full flex-1 overflow-hidden">
             <div
               className="flex h-full w-full"
               style={{
