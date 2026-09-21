@@ -10,7 +10,12 @@ export default function TopBar() {
   const { pending, busy, syncNow } = useSyncStatus()
 
   return (
-    <header className="sticky top-0 z-30 w-full border-b border-line bg-surface/80 backdrop-blur-xl">
+    // pt-safe-top — on phones that draw the app edge-to-edge (no reserved
+    // status bar strip), this header would otherwise start at the very top
+    // of the screen and the status bar would sit on top of the profile
+    // button, eating its taps. BottomNav already does the equivalent thing
+    // at the bottom (pb-safe-bottom); the top bar needs the same treatment.
+    <header className="sticky top-0 z-30 w-full border-b border-line bg-surface/80 pt-safe-top backdrop-blur-xl">
       <div className="mx-auto flex h-14 max-w-md items-center justify-between px-4">
         {/* Left: Logo + App Name — same file as the home-screen icon, not a
             hand-redrawn copy, so they can never visually drift apart. */}
